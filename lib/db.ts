@@ -1,0 +1,287 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { randomUUID } from 'node:crypto'
+import { voidAuthorization } from './paypal'
+import {
+  CLAIM_TIMEOUT_MS,
+  type Escrow,
+  type Profile,
+  type Proof,
+  type Task,
+} from './types'
+
+/**
+ * Data layer. Uses Supabase when NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+ * are set; otherwise falls back to an in-memory store seeded with demo data so the
+ * whole loop is demoable with zero configuration (resets on server restart).
+ */
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+export const usingSupabase = Boolean(SUPABASE_URL && SUPABASE_KEY)
+
+let _sb: SupabaseClient | null = null
+function sb(): SupabaseClient {
+  if (!_sb) _sb = createClient(SUPABASE_URL!, SUPABASE_KEY!, { auth: { persistSession: false } })
+  return _sb
+}
+
+// ---------- in-memory fallback ----------
+interface Mem {
+  profiles: Profile[]
+  tasks: Task[]
+  proofs: Proof[]
+  escrows: Escrow[]
+}
+const g = globalThis as unknown as { __hirlyMem?: Mem }
+
+function seed(): Mem {
+  const now = Date.now()
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const agent: Profile = {
+    id: randomUUID(), kind: 'agent', display_name: 'glazyr-shopper-01',
+    paypal_email: 'agent@example.com', reputation: 5, created_at: iso(now),
+  }
+  const human: Profile = {
+    id: randomUUID(), kind: 'human', display_name: 'demo-earner',
+    paypal_email: 'human@example.com', reputation: 4.9, created_at: iso(now),
+  }
+  const mk = (
+    title: string, description: string, task_type: Task['task_type'],
+    price_cents: number, proof: string, minsLeft: number,
+  ): [Task, Escrow] => {
+    const id = randomUUID()
+    const fee = Math.round(price_cents * 0.15)
+    return [
+      {
+        id, agent_id: agent.id, title, description, task_type, price_cents,
+        status: 'open', proof_requirements: proof, claimed_by: null, claimed_at: null,
+        deadline_at: iso(now + minsLeft * 60_000), created_at: iso(now),
+      },
+      {
+        id: randomUUID(), task_id: id, paypal_order_id: 'MOCK-' + id.slice(0, 8),
+        paypal_authorization_id: 'MOCK-AUTH-' + id.slice(0, 8),
+        amount_cents: price_cents + fee, platform_fee_cents: fee, status: 'held',
+        created_at: iso(now), captured_at: null,
+      },
+    ]
+  }
+  const seeded = [
+    mk('Verify tee color in listing photo vs. real life',
+      'The agent is buying a vintage band tee. The listing photo shows faded black, but the agent suspects navy. Find a similar item or visit the store and photograph it in daylight.',
+      'verification', 300, 'photo', 28),
+    mk('Call a local store and check stock',
+      'Call the store and confirm whether size M is in stock. Submit the name of the person you spoke to and what they said.',
+      'phone_call', 650, 'text', 120),
+    mk('Confirm a product detail from the shelf',
+      'Read the ingredient list on the product and submit the first five ingredients.',
+      'local_presence', 175, 'text', 240),
+  ]
+  return {
+    profiles: [agent, human],
+    tasks: seeded.map((s) => s[0]),
+    proofs: [],
+    escrows: seeded.map((s) => s[1]),
+  }
+}
+function mem(): Mem {
+  if (!g.__hirlyMem) g.__hirlyMem = seed()
+  return g.__hirlyMem
+}
+
+function must<T>(r: { data: T | null; error: { message: string } | null }): T {
+  if (r.error) throw new Error(r.error.message)
+  return r.data as T
+}
+
+// ---------- profiles ----------
+export async function getDemoProfile(kind: 'agent' | 'human'): Promise<Profile> {
+  if (!usingSupabase) return mem().profiles.find((p) => p.kind === kind)!
+  const rows = must(
+    await sb().from('profiles').select('*').eq('kind', kind).order('created_at').limit(1),
+  ) as Profile[]
+  if (!rows.length) throw new Error(`No ${kind} profile found. Run supabase/schema.sql`)
+  return rows[0]
+}
+
+export async function getProfile(id: string): Promise<Profile | null> {
+  if (!usingSupabase) return mem().profiles.find((p) => p.id === id) ?? null
+  const r = await sb().from('profiles').select('*').eq('id', id).maybeSingle()
+  return (must(r) as Profile | null) ?? null
+}
+
+// ---------- tasks ----------
+/** Return stale claims to the queue and expire tasks past their deadline. */
+export async function sweepTasks(): Promise<{ reopened: string[]; expired: string[] }> {
+  const now = Date.now()
+  const all = await listTasks({ sweep: false })
+  const reopened: string[] = []
+  const expired: string[] = []
+  for (const t of all) {
+    if (t.status === 'claimed' && t.claimed_at && now - Date.parse(t.claimed_at) > CLAIM_TIMEOUT_MS) {
+      await updateTask(t.id, { status: 'open', claimed_by: null, claimed_at: null })
+      reopened.push(t.id)
+    } else if (
+      (t.status === 'open' || t.status === 'pending_funding') &&
+      t.deadline_at && Date.parse(t.deadline_at) < now
+    ) {
+      await updateTask(t.id, { status: 'expired' })
+      const esc = await getEscrow(t.id)
+      if (esc?.status === 'held' || esc?.status === 'pending') {
+        try {
+          if (esc.paypal_authorization_id) await voidAuthorization(esc.paypal_authorization_id)
+        } catch (e) {
+          console.error('[sweep] void failed', e)
+        }
+        await upsertEscrow({ task_id: t.id, amount_cents: esc.amount_cents, status: 'voided' })
+      }
+      expired.push(t.id)
+    }
+  }
+  return { reopened, expired }
+}
+
+export async function listTasks(opts: { status?: string; sweep?: boolean } = {}): Promise<Task[]> {
+  if (opts.sweep !== false) await sweepTasks()
+  let rows: Task[]
+  if (!usingSupabase) {
+    rows = [...mem().tasks]
+  } else {
+    rows = must(await sb().from('tasks').select('*').order('created_at', { ascending: false })) as Task[]
+  }
+  if (opts.status) rows = rows.filter((t) => t.status === opts.status)
+  return rows.sort((a, b) => b.created_at.localeCompare(a.created_at))
+}
+
+export async function getTask(id: string): Promise<Task | null> {
+  if (!usingSupabase) return mem().tasks.find((t) => t.id === id) ?? null
+  return (must(await sb().from('tasks').select('*').eq('id', id).maybeSingle()) as Task | null) ?? null
+}
+
+export async function createTask(
+  input: Pick<Task, 'agent_id' | 'title' | 'description' | 'task_type' | 'price_cents' | 'proof_requirements' | 'deadline_at' | 'status'>,
+): Promise<Task> {
+  if (!usingSupabase) {
+    const t: Task = {
+      ...input, id: randomUUID(), claimed_by: null, claimed_at: null,
+      created_at: new Date().toISOString(),
+    }
+    mem().tasks.push(t)
+    return t
+  }
+  return must(await sb().from('tasks').insert(input).select().single()) as Task
+}
+
+export async function updateTask(id: string, patch: Partial<Task>): Promise<Task> {
+  if (!usingSupabase) {
+    const t = mem().tasks.find((x) => x.id === id)
+    if (!t) throw new Error('Task not found')
+    Object.assign(t, patch)
+    return t
+  }
+  return must(await sb().from('tasks').update(patch).eq('id', id).select().single()) as Task
+}
+
+/** Atomic claim: only succeeds if the task is currently open. */
+export async function claimTask(id: string, humanId: string): Promise<Task | null> {
+  const patch = { status: 'claimed' as const, claimed_by: humanId, claimed_at: new Date().toISOString() }
+  if (!usingSupabase) {
+    const t = mem().tasks.find((x) => x.id === id)
+    if (!t || t.status !== 'open') return null
+    Object.assign(t, patch)
+    return t
+  }
+  const r = await sb().from('tasks').update(patch).eq('id', id).eq('status', 'open').select()
+  const rows = must(r) as Task[]
+  return rows[0] ?? null
+}
+
+// ---------- proofs ----------
+export async function addProof(
+  input: Omit<Proof, 'id' | 'submitted_at'>,
+): Promise<Proof> {
+  if (!usingSupabase) {
+    const p: Proof = { ...input, id: randomUUID(), submitted_at: new Date().toISOString() }
+    mem().proofs.push(p)
+    return p
+  }
+  return must(await sb().from('proofs').insert(input).select().single()) as Proof
+}
+
+export async function getLatestProof(taskId: string): Promise<Proof | null> {
+  if (!usingSupabase) {
+    const rows = mem().proofs.filter((p) => p.task_id === taskId)
+    return rows[rows.length - 1] ?? null
+  }
+  const rows = must(
+    await sb().from('proofs').select('*').eq('task_id', taskId).order('submitted_at', { ascending: false }).limit(1),
+  ) as Proof[]
+  return rows[0] ?? null
+}
+
+// ---------- escrows ----------
+export async function upsertEscrow(
+  input: Partial<Escrow> & Pick<Escrow, 'task_id' | 'amount_cents'>,
+): Promise<Escrow> {
+  if (!usingSupabase) {
+    const existing = mem().escrows.find((e) => e.task_id === input.task_id)
+    if (existing) return Object.assign(existing, input)
+    const e: Escrow = {
+      id: randomUUID(), paypal_order_id: null, paypal_authorization_id: null,
+      platform_fee_cents: 0, status: 'pending', created_at: new Date().toISOString(),
+      captured_at: null, ...input,
+    }
+    mem().escrows.push(e)
+    return e
+  }
+  return must(
+    await sb().from('escrows').upsert(input, { onConflict: 'task_id' }).select().single(),
+  ) as Escrow
+}
+
+export async function getEscrow(taskId: string): Promise<Escrow | null> {
+  if (!usingSupabase) return mem().escrows.find((e) => e.task_id === taskId) ?? null
+  return (must(await sb().from('escrows').select('*').eq('task_id', taskId).maybeSingle()) as Escrow | null) ?? null
+}
+
+export async function getEscrowByOrder(orderId: string): Promise<Escrow | null> {
+  if (!usingSupabase) return mem().escrows.find((e) => e.paypal_order_id === orderId) ?? null
+  return (must(await sb().from('escrows').select('*').eq('paypal_order_id', orderId).maybeSingle()) as Escrow | null) ?? null
+}
+
+export async function listEscrows(): Promise<Escrow[]> {
+  if (!usingSupabase) return [...mem().escrows]
+  return must(await sb().from('escrows').select('*')) as Escrow[]
+}
+
+// ---------- proof image storage ----------
+/** Upload to Supabase Storage bucket "proofs" if configured, else return a data URL. */
+export async function storeProofImage(file: File): Promise<string> {
+  const buf = Buffer.from(await file.arrayBuffer())
+  if (!usingSupabase) {
+    return `data:${file.type || 'image/jpeg'};base64,${buf.toString('base64')}`
+  }
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${randomUUID()}.${ext}`
+  const up = await sb().storage.from('proofs').upload(path, buf, { contentType: file.type || 'image/jpeg' })
+  if (up.error) throw new Error(up.error.message)
+  return sb().storage.from('proofs').getPublicUrl(path).data.publicUrl
+}
+
+// ---------- stats ----------
+export async function getStats() {
+  const [tasks, escrows] = await Promise.all([listTasks({ sweep: false }), listEscrows()])
+  const byTask = new Map(escrows.map((e) => [e.task_id, e]))
+  let escrowed = 0
+  let released = 0
+  for (const e of escrows) {
+    if (e.status === 'held') escrowed += e.amount_cents
+    if (e.status === 'captured') released += e.amount_cents - e.platform_fee_cents
+  }
+  return {
+    escrowed_cents: escrowed,
+    released_cents: released,
+    open: tasks.filter((t) => t.status === 'open').length,
+    paid: tasks.filter((t) => t.status === 'paid').length,
+    total: tasks.length,
+  }
+}
