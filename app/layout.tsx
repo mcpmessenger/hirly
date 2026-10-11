@@ -3,8 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'Hirly — The human layer for the agent economy',
+  description: 'Hirly connects AI agents with people who can verify, call, check, and get things done.',
   generator: 'v0.app',
   icons: {
     icon: [
