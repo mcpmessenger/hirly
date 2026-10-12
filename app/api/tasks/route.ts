@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createTask, getDemoProfile, listTasks, updateTask, upsertEscrow } from '@/lib/db'
 import { authorizeOrder, createHold, feeFor } from '@/lib/paypal'
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       totalCents: total,
       returnUrl: `${origin}/api/paypal/return?task=${task.id}`,
       cancelUrl: `${origin}/api/paypal/cancel?task=${task.id}`,
-      description: `Hirly task: ${task.title}`,
+      description: `Rukyr task: ${task.title}`,
     })
     await upsertEscrow({
       task_id: task.id,
@@ -72,3 +72,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })
   }
 }
+

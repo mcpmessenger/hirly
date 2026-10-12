@@ -1,4 +1,4 @@
--- Hirly — Supabase schema. Run in the Supabase SQL editor.
+﻿-- Rukyr â€” Supabase schema. Run in the Supabase SQL editor.
 -- The app talks to Supabase with the service-role key from server routes only,
 -- so RLS is enabled with NO policies (deny-all for anon/authenticated clients).
 
@@ -63,6 +63,7 @@ alter table tasks enable row level security;
 alter table proofs enable row level security;
 alter table escrows enable row level security;
 
--- Proof images: create a public-read Storage bucket named "proofs" (dashboard → Storage),
+-- Proof images: create a public-read Storage bucket named "proofs" (dashboard â†’ Storage),
 -- or uncomment:
 -- insert into storage.buckets (id, name, public) values ('proofs', 'proofs', true);
+

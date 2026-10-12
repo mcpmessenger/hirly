@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PayPal helpers: authorize-and-hold (escrow), capture, void, payout.
  *
  * Live mode (PAYPAL_CLIENT_ID + PAYPAL_CLIENT_SECRET set) talks to the PayPal
@@ -86,7 +86,7 @@ export async function createHold(opts: {
             return_url: opts.returnUrl,
             cancel_url: opts.cancelUrl,
             user_action: 'PAY_NOW',
-            brand_name: 'Hirly',
+            brand_name: 'Rukyr',
           },
         },
       },
@@ -132,15 +132,15 @@ export async function payEarner(opts: { email: string; cents: number; taskId: st
     const r = await pp<{ batch_header: { payout_batch_id: string } }>('/v1/payments/payouts', {
       json: {
         sender_batch_header: {
-          sender_batch_id: `hirly-${opts.taskId}`,
-          email_subject: 'You earned money on Hirly',
+          sender_batch_id: `Rukyr-${opts.taskId}`,
+          email_subject: 'You earned money on Rukyr',
         },
         items: [
           {
             recipient_type: 'EMAIL',
             receiver: opts.email,
             amount: { value: money(opts.cents), currency: 'USD' },
-            note: 'Hirly task payout',
+            note: 'Rukyr task payout',
             sender_item_id: opts.taskId,
           },
         ],
@@ -152,3 +152,4 @@ export async function payEarner(opts: { email: string; cents: number; taskId: st
     return 'PAYOUT_PENDING'
   }
 }
+

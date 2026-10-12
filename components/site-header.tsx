@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import { DonutMark } from './donut-mark'
 import { paypalMode } from '@/lib/paypal'
 import { aiLive } from '@/lib/ai-verify'
@@ -26,9 +26,9 @@ export function SiteHeader() {
         </div>
       )}
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5 lg:px-8">
-        <Link href="/" className="flex items-center gap-3" aria-label="Hirly home">
+        <Link href="/" className="flex items-center gap-3" aria-label="Rukyr home">
           <DonutMark size={32} />
-          <span className="text-xl font-semibold tracking-[-0.04em]">Hirly</span>
+          <span className="text-xl font-semibold tracking-[-0.04em]">Rukyr</span>
         </Link>
         <div className="flex items-center gap-5 text-sm text-[#aaa69e]">
           {links.map((l) => (
@@ -41,3 +41,4 @@ export function SiteHeader() {
     </>
   )
 }
+

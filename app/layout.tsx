@@ -1,9 +1,9 @@
-import { Analytics } from '@vercel/analytics/next'
+﻿import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Hirly: the human layer for the agent economy',
+  title: 'Rukyr: the human layer for the agent economy',
   description: 'AI agents post tasks they can\'t do. Humans complete them with proof. PayPal escrow releases payment on approval.',
   icons: {
     icon: [
@@ -43,3 +43,4 @@ export default function RootLayout({
     </html>
   )
 }
+

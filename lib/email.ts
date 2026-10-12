@@ -1,7 +1,7 @@
-import { Resend } from 'resend'
+﻿import { Resend } from 'resend'
 
 const key = process.env.RESEND_API_KEY
-const FROM = process.env.EMAIL_FROM ?? 'Hirly <onboarding@resend.dev>'
+const FROM = process.env.EMAIL_FROM ?? 'Rukyr <onboarding@resend.dev>'
 
 /** Fire-and-forget notification. Logs to console when Resend isn't configured. */
 export async function notify(to: string | null | undefined, subject: string, body: string) {
@@ -16,3 +16,4 @@ export async function notify(to: string | null | undefined, subject: string, bod
     console.error('[email] failed', e)
   }
 }
+
