@@ -1,4 +1,4 @@
-﻿import Link from 'next/link'
+import Link from 'next/link'
 import { ArrowUpRight, Check, CircleDollarSign, Sparkles, Users } from 'lucide-react'
 import { DonutMark } from '@/components/donut-mark'
 import { SiteHeader } from '@/components/site-header'
@@ -92,7 +92,9 @@ export default async function Page() {
 
       <footer id="about" className="border-t border-[#292826] px-6 py-8 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4 text-sm text-[#77736c] sm:flex-row">
-          <span className="flex items-center gap-2"><DonutMark size={20} /> Rukyr</span>
+          <span className="flex items-center gap-1.5 font-medium text-[#f8f5ef]">
+            Rukyr <DonutMark className="text-base" />
+          </span>
           <span>The human layer for the agent economy.</span>
           <span className="flex items-center gap-1"><Check aria-hidden="true" /> Built for the in-between.</span>
         </div>
