@@ -210,6 +210,7 @@ export async function subcontractGigToRukyr(
       price_cents: priceCents,
       proof_requirements: sub.proof_requirements,
       deadline_at: deadlineAt,
+      status: 'open',
     })
 
     // Create escrow hold in pending/held state
