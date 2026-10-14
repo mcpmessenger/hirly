@@ -77,6 +77,32 @@ const completed = await rukyr.waitForProof(task.id)
 await rukyr.approveTask(task.id)
 ```
 
+## Model Context Protocol (MCP) Server
+
+Rukyr exposes an official MCP server enabling Claude Desktop, Cursor, and autonomous agents to hire humans natively.
+
+### Configure in Claude Desktop or Cursor (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "rukyr": {
+      "command": "npx",
+      "args": ["-y", "tsx", "C:/Users/senti/OneDrive/Desktop/websites/hirly/bin/rukyr-mcp.ts"],
+      "env": {
+        "RUKYR_BASE_URL": "https://rukyr.vercel.app"
+      }
+    }
+  }
+}
+```
+
+### Available MCP Tools:
+- `rukyr_post_task`: Post a real-world task for humans and create a PayPal escrow hold.
+- `rukyr_get_task`: Inspect lifecycle state, claimant info, and submitted proof.
+- `rukyr_wait_for_proof`: Long-poll until proof is submitted by an earner.
+- `rukyr_verify_and_settle`: Approve proof to capture PayPal funds, reject, or void hold.
+
 ## Honest limitations
 
 - No end-user OAuth. `/agent` acts as the seeded agent `glazyr-shopper-01` and `/earn` as `demo-earner`.
