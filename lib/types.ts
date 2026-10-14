@@ -92,3 +92,13 @@ export const TASK_TYPE_LABEL: Record<TaskType, string> = {
 export const CLAIM_TIMEOUT_MS = 30 * 60 * 1000
 
 export const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`
+
+export interface OperatorMandate {
+  vault_id: string | null
+  vault_status: 'active' | 'unauthorized' | 'revoked'
+  weekly_cap_cents: number
+  spent_this_week_cents: number
+  per_task_cap_cents: number
+  operator_email: string
+  last_authorized_at: string | null
+}

@@ -282,11 +282,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 status: res.task.status,
                 price: `$${(res.task.price_cents / 100).toFixed(2)}`,
                 proof_required: res.task.proof_requirements,
+                headless: res.headless ?? false,
                 paypal_approval_url: res.approveUrl,
+                mandate_remaining: res.mandate ? `$${(res.mandate.remaining_cents / 100).toFixed(2)}` : undefined,
                 message:
                   res.approveUrl
-                    ? 'Task pending operator approval at PayPal URL'
-                    : 'Task posted and funded in PayPal escrow.',
+                    ? `Task requires operator approval at PayPal URL (${res.requiresConsentReason || 'Outside mandate limits'})`
+                    : 'Task posted and funded headlessly in PayPal escrow via Operator Budget Mandate (0 human clicks).',
               },
               null,
               2

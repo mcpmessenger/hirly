@@ -4,7 +4,16 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { StatusBadge, timeLeft } from './task-card'
-import { TASK_TYPE_LABEL, usd, type Escrow, type Proof, type Task, type TaskType, type Bid } from '@/lib/types'
+import {
+  TASK_TYPE_LABEL,
+  usd,
+  type Escrow,
+  type Proof,
+  type Task,
+  type TaskType,
+  type Bid,
+  type OperatorMandate,
+} from '@/lib/types'
 import type { ExternalGig } from '@/lib/subcontract'
 
 export interface ConsoleItem {
@@ -38,17 +47,20 @@ export function AgentConsole({
   prefill,
   flash,
   externalGigs = [],
+  initialMandate,
 }: {
   items: ConsoleItem[]
   stats: ConsoleStats
   prefill?: Prefill
   flash?: { kind: 'ok' | 'err'; text: string } | null
   externalGigs?: ExternalGig[]
+  initialMandate?: OperatorMandate
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<(typeof TABS)[number]>('all')
   const [showForm, setShowForm] = useState(Boolean(prefill?.title))
   const [showSubcontract, setShowSubcontract] = useState(false)
+  const [mandate, setMandate] = useState<OperatorMandate | undefined>(initialMandate)
   const [selected, setSelected] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(flash ?? null)
@@ -120,6 +132,34 @@ export function AgentConsole({
     router.refresh()
   }
 
+  async function toggleVault(action: 'authorize' | 'revoke') {
+    setBusy('vault')
+    const res = await fetch('/api/vault/mandate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    })
+    const data = await res.json()
+    setBusy(null)
+    if (!res.ok) {
+      setMsg({ kind: 'err', text: data.error || 'Failed to update vault mandate' })
+      return
+    }
+    if (data.approveUrl) {
+      window.location.href = data.approveUrl
+      return
+    }
+    setMandate(data.mandate)
+    setMsg({
+      kind: 'ok',
+      text:
+        action === 'authorize'
+          ? 'Mandate authorized via PayPal Vault! Headless 0-click escrow holds are now active.'
+          : 'Operator mandate revoked. Autonomous agent spending is now frozen.',
+    })
+    router.refresh()
+  }
+
   async function post(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
@@ -144,7 +184,12 @@ export function AgentConsole({
       return
     }
     setShowForm(false)
-    setMsg({ kind: 'ok', text: 'Task posted and funds held in escrow.' })
+    setMsg({
+      kind: 'ok',
+      text: data.headless
+        ? 'Task posted autonomously! Escrow hold authorized via PayPal Vault token (0 human clicks).'
+        : 'Task posted and funds held in escrow.',
+    })
     router.refresh()
   }
 
@@ -197,6 +242,94 @@ export function AgentConsole({
         >
           {msg.text}
         </p>
+      )}
+
+      {/* Operator Budget Mandate & PayPal Vault Card */}
+      {mandate && (
+        <div className="mb-6 rounded-2xl border border-[#302e2b] bg-[#161615] p-5 shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`size-2.5 rounded-full ${
+                    mandate.vault_status === 'active' ? 'bg-[#8bd3a8] animate-pulse' : 'bg-[#f4a261]'
+                  }`}
+                />
+                <span className="font-mono text-[11px] uppercase tracking-wider text-[#8f8b84]">
+                  Operator Budget Mandate • PayPal Vault v3
+                </span>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase font-semibold ${
+                    mandate.vault_status === 'active'
+                      ? 'bg-[#1d2b22] text-[#8bd3a8]'
+                      : 'bg-[#33281c] text-[#f4a261]'
+                  }`}
+                >
+                  {mandate.vault_status === 'active' ? 'Vault Active (Unscheduled MIT)' : 'Manual Consent Required'}
+                </span>
+              </div>
+              <h3 className="mt-1 text-lg font-medium">Autonomous Spend Guardrails</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              {mandate.vault_status === 'active' ? (
+                <button
+                  type="button"
+                  disabled={busy === 'vault'}
+                  onClick={() => toggleVault('revoke')}
+                  className="rounded-full border border-[#f08f8f]/40 px-3.5 py-1 text-xs text-[#f08f8f] hover:bg-[#f08f8f]/10 disabled:opacity-50 transition-colors"
+                >
+                  {busy === 'vault' ? 'Updating…' : 'Revoke Vault Token'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy === 'vault'}
+                  onClick={() => toggleVault('authorize')}
+                  className="rounded-full bg-[#f4a261] px-4 py-1 text-xs font-semibold text-[#171412] hover:bg-[#f4a261]/90 disabled:opacity-50 transition-colors"
+                >
+                  {busy === 'vault' ? 'Authorizing…' : 'Authorize One-Time Mandate'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-3 border-t border-[#262422] pt-4">
+            <div>
+              <p className="text-[11px] text-[#77736c]">Weekly Spend Pool</p>
+              <p className="mt-0.5 font-mono text-sm text-[#f8f5ef]">
+                {usd(mandate.spent_this_week_cents)} <span className="text-[#77736c]">/ {usd(mandate.weekly_cap_cents)}</span>
+              </p>
+              <div className="mt-2 h-1.5 w-full rounded-full bg-[#242320] overflow-hidden">
+                <div
+                  className="h-full bg-[#f4a261] rounded-full"
+                  style={{
+                    width: `${Math.min(100, (mandate.spent_this_week_cents / mandate.weekly_cap_cents) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-[#77736c]">Per-Task Cap</p>
+              <p className="mt-0.5 font-mono text-sm text-[#f8f5ef]">
+                {usd(mandate.per_task_cap_cents)} <span className="text-[#77736c]">max per micro-task</span>
+              </p>
+              <p className="mt-2 text-[11px] text-[#8f8b84]">
+                Tasks under {usd(mandate.per_task_cap_cents)} authorize headlessly (0 human clicks).
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-[#77736c]">Autonomy Mode</p>
+              <p className="mt-0.5 text-xs text-[#8bd3a8] font-mono">
+                {mandate.vault_status === 'active' ? '● Headless Escrow Hold (0 Clicks)' : '○ Redirect Required'}
+              </p>
+              <p className="mt-2 text-[11px] text-[#77736c]">
+                Token: <span className="font-mono text-[#aaa69e]">{mandate.vault_id ? `${mandate.vault_id.slice(0, 16)}…` : 'None'}</span>
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Subcontracting Hub (Upwork Bridge) */}

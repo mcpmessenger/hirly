@@ -31,17 +31,36 @@ With no keys the app runs in **demo mode**: seeded in-memory data, simulated Pay
 ## Going live
 
 1. **Supabase:** create a project, run `supabase/schema.sql`, create a public Storage bucket named `proofs`, set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
-2. **PayPal sandbox:** create a REST app and set `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`. Posting a task redirects the operator to approve the hold with a sandbox buyer account. Earner payouts use the Payouts API, which must be enabled on the app; if it isn't, capture still succeeds and the payout is recorded as `PAYOUT_PENDING` in the logs.
+2. **PayPal sandbox:** create a REST app and set `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`. Operators grant a one-time budget consent via PayPal Vault v3 (`/v3/vault/setup-tokens`). Once authorized, autonomous agents place escrow authorization holds headlessly (0 human clicks) via Merchant-Initiated Transactions (MIT) within the operator's weekly and per-task budget caps. Earner payouts use the Payouts API; if disabled in sandbox, capture still succeeds and payouts log as `PAYOUT_PENDING`.
 3. **AI:** set `AI_GATEWAY_API_KEY` (Vercel AI Gateway). Any vision-capable model id works via `AI_MODEL`.
 4. **Email:** set `RESEND_API_KEY`.
 
-## Architecture: Autonomous Budgeting & Escrow
+## Architecture: Autonomous Budgeting & Escrow (PayPal Vault v3 MIT)
 
-In Rukyr, human operators do not click to approve every $2 micro-task. Agents operate under an **Operator Budget Mandate**:
-1. **Pre-Authorized Escrow Window:** The operator sets a spend cap (e.g. $50/week, max $5/task).
-2. **Autonomous Intent:** When the agent hits a physical blocker (via UCP discovery or browser tools), it invokes the `RukyrClient` SDK directly.
-3. **PayPal Orders v2 Auth-Hold:** Funds for the task plus platform fee are placed on an authorization hold programmatically.
-4. **Handoff Completion:** Funds are captured only after successful completion and verification, releasing the agent to finish checkout.
+The central friction in agentic commerce is the "per-task approval paradox": if a human operator must manually click and approve every $1.50 micro-task, the agent isn't truly autonomous. 
+
+Rukyr solves this using **PayPal Vault v3 Unscheduled Merchant-Initiated Transactions (MIT)** governed by a cryptographic **Operator Budget Mandate**:
+
+```
+[Human Operator]
+       │
+       ▼ (1) One-Time Mandate Consent via PayPal Vault v3 (/v3/vault/setup-tokens)
+[Vault Token Stored] (e.g. $50/wk budget, max $5/task)
+       │
+       ▼ (2) Agent detects real-world physical blocker (shelf check, color discrepancy, phone call)
+[Autonomous Headless Hold] ──▶ PayPal Orders v2 Auth (0 clicks via payment_source.token)
+       │
+       ▼ (3) Human earner claims, performs real-world task, submits photo/proof
+[Vision AI Pre-Screening] ──▶ Multimodal model authenticates proof against criteria
+       │
+       ▼ (4) Proof Approved
+[Escrow Capture & Payout] ──▶ PayPal Authorizations Capture + Payouts API to earner
+```
+
+1. **One-Time Operator Consent:** The human operator approves a budget mandate once. PayPal returns a secure payment method token (`vault_id`).
+2. **Headless Escrow Authorization (0 Clicks):** When the agent creates a task within mandate limits ($\le \$5$ per task, within weekly budget), Rukyr initiates an unscheduled MIT order with `intent: 'AUTHORIZE'` and `payment_source: { token: { id: vault_id, type: 'PAYMENT_METHOD_TOKEN' } }`. The hold is placed in milliseconds without interrupting the human.
+3. **Safety Fallbacks & Circuit Breakers:** If a task exceeds the per-task cap or exhausts the weekly budget, Rukyr gracefully falls back to generating an interactive PayPal approval redirect (`approveUrl`). Operators can revoke the mandate at any second from the console to instantly freeze agent spending.
+4. **Verified Settlement:** Funds remain held in escrow until human proof is validated by Vision AI and approved by the agent, after which PayPal captures the authorization and disburses earner payouts.
 
 ## Trust, Reputation & Anti-Fraud Architecture
 

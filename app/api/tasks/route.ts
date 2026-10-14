@@ -1,6 +1,14 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createTask, getDemoProfile, listTasks, updateTask, upsertEscrow } from '@/lib/db'
+import {
+  createTask,
+  getDemoProfile,
+  getOperatorMandate,
+  listTasks,
+  recordMandateSpend,
+  updateTask,
+  upsertEscrow,
+} from '@/lib/db'
 import { authorizeOrder, createHold, feeFor } from '@/lib/paypal'
 import { notify } from '@/lib/email'
 
@@ -30,6 +38,13 @@ export async function POST(req: NextRequest) {
   const fee = feeFor(input.price_cents)
   const total = input.price_cents + fee
 
+  const mandate = await getOperatorMandate()
+  const canUseVault =
+    mandate.vault_status === 'active' &&
+    Boolean(mandate.vault_id) &&
+    input.price_cents <= mandate.per_task_cap_cents &&
+    mandate.spent_this_week_cents + total <= mandate.weekly_cap_cents
+
   const task = await createTask({
     agent_id: agent.id,
     title: input.title,
@@ -49,6 +64,7 @@ export async function POST(req: NextRequest) {
       returnUrl: `${origin}/api/paypal/return?task=${task.id}`,
       cancelUrl: `${origin}/api/paypal/cancel?task=${task.id}`,
       description: `Rukyr task: ${task.title}`,
+      vaultId: canUseVault ? mandate.vault_id : null,
     })
     await upsertEscrow({
       task_id: task.id,
@@ -59,14 +75,49 @@ export async function POST(req: NextRequest) {
     })
 
     if (hold.approveUrl) {
-      return NextResponse.json({ task, approveUrl: hold.approveUrl }, { status: 201 })
+      return NextResponse.json(
+        {
+          task,
+          approveUrl: hold.approveUrl,
+          headless: false,
+          requiresConsentReason: canUseVault
+            ? null
+            : input.price_cents > mandate.per_task_cap_cents
+            ? `Price (${input.price_cents / 100}) exceeds operator mandate cap of $${(mandate.per_task_cap_cents / 100).toFixed(2)}`
+            : 'Operator mandate limit reached',
+        },
+        { status: 201 },
+      )
     }
-    // Mock mode: no operator approval needed, hold immediately.
-    const authId = await authorizeOrder(hold.orderId)
-    await upsertEscrow({ task_id: task.id, amount_cents: total, paypal_authorization_id: authId, status: 'held' })
+
+    // Headless Vault MIT or auto-approved hold: no operator approval needed!
+    const authId = hold.authorizationId || (await authorizeOrder(hold.orderId))
+    await upsertEscrow({
+      task_id: task.id,
+      amount_cents: total,
+      paypal_authorization_id: authId,
+      status: 'held',
+    })
     const open = await updateTask(task.id, { status: 'open' })
-    await notify(agent.paypal_email, 'Task posted', `"${task.title}" is live. ${total / 100} USD held in escrow.`)
-    return NextResponse.json({ task: open, approveUrl: null }, { status: 201 })
+    if (canUseVault) {
+      await recordMandateSpend(total)
+    }
+    await notify(
+      agent.paypal_email,
+      'Task posted',
+      `"${task.title}" is live. ${total / 100} USD held in escrow via PayPal Vault.`,
+    )
+    return NextResponse.json(
+      {
+        task: open,
+        approveUrl: null,
+        headless: true,
+        mandate: {
+          remaining_cents: Math.max(0, mandate.weekly_cap_cents - mandate.spent_this_week_cents - total),
+        },
+      },
+      { status: 201 },
+    )
   } catch (e) {
     await updateTask(task.id, { status: 'cancelled' })
     return NextResponse.json({ error: (e as Error).message }, { status: 502 })

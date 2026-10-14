@@ -30,8 +30,15 @@ export class RukyrClient {
 
   /**
    * Post a task to Rukyr and initiate PayPal escrow hold.
+   * If within Operator Mandate caps, executes headlessly (approveUrl is null, headless is true).
    */
-  async createTask(params: CreateTaskParams): Promise<{ task: Task; approveUrl: string | null }> {
+  async createTask(params: CreateTaskParams): Promise<{
+    task: Task
+    approveUrl: string | null
+    headless?: boolean
+    mandate?: { remaining_cents: number }
+    requiresConsentReason?: string | null
+  }> {
     const res = await fetch(`${this.baseUrl}/api/tasks`, {
       method: 'POST',
       headers: {

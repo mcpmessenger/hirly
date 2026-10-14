@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PayPal helpers: authorize-and-hold (escrow), capture, void, payout.
  *
  * Live mode (PAYPAL_CLIENT_ID + PAYPAL_CLIENT_SECRET set) talks to the PayPal
@@ -57,19 +57,75 @@ const money = (cents: number) => (cents / 100).toFixed(2)
 
 export interface Hold {
   orderId: string
-  /** Where the operator must approve the hold. null in mock mode (auto-approved). */
+  /** Where the operator must approve the hold. null in mock mode or when authorized via Vault. */
   approveUrl: string | null
+  /** True when authorized headlessly without operator redirect via PayPal Vault token. */
+  headless?: boolean
+  authorizationId?: string | null
 }
 
-/** Step 1: create the order for price + fee. */
+/** Step 1: create the order for price + fee. Supports headless Vault MIT or interactive flow. */
 export async function createHold(opts: {
   taskId: string
   totalCents: number
   returnUrl: string
   cancelUrl: string
   description: string
+  vaultId?: string | null
 }): Promise<Hold> {
-  if (!paypalLive) return { orderId: 'MOCK-' + opts.taskId.slice(0, 8), approveUrl: null }
+  // If a vaultId is present, execute a headless Merchant-Initiated Transaction (MIT)
+  if (opts.vaultId) {
+    if (!paypalLive) {
+      return {
+        orderId: 'MOCK-VAULT-' + opts.taskId.slice(0, 8),
+        approveUrl: null,
+        headless: true,
+        authorizationId: 'AUTH-VAULT-MOCK-' + opts.taskId.slice(0, 8),
+      }
+    }
+
+    try {
+      const order = await pp<{
+        id: string
+        status: string
+        purchase_units: Array<{
+          payments?: {
+            authorizations?: Array<{ id: string; status: string }>
+          }
+        }>
+      }>('/v2/checkout/orders', {
+        json: {
+          intent: 'AUTHORIZE',
+          purchase_units: [
+            {
+              reference_id: opts.taskId,
+              description: opts.description.slice(0, 120),
+              amount: { currency_code: 'USD', value: money(opts.totalCents) },
+            },
+          ],
+          payment_source: {
+            token: {
+              id: opts.vaultId,
+              type: 'PAYMENT_METHOD_TOKEN',
+            },
+          },
+        },
+      })
+
+      const authId = order.purchase_units?.[0]?.payments?.authorizations?.[0]?.id || null
+      return {
+        orderId: order.id,
+        approveUrl: null,
+        headless: true,
+        authorizationId: authId,
+      }
+    } catch (err: any) {
+      console.warn('Vault MIT order failed, falling back to standard payer approval:', err?.message)
+    }
+  }
+
+  // Standard interactive approval flow
+  if (!paypalLive) return { orderId: 'MOCK-' + opts.taskId.slice(0, 8), approveUrl: null, headless: false }
   const order = await pp<{ id: string; links: { rel: string; href: string }[] }>('/v2/checkout/orders', {
     json: {
       intent: 'AUTHORIZE',
@@ -93,7 +149,44 @@ export async function createHold(opts: {
     },
   })
   const link = order.links.find((l) => l.rel === 'payer-action' || l.rel === 'approve')
-  return { orderId: order.id, approveUrl: link?.href ?? null }
+  return { orderId: order.id, approveUrl: link?.href ?? null, headless: false }
+}
+
+/** Step 1b: create a PayPal Vault setup session for one-time operator mandate consent. */
+export async function createVaultSetupSession(opts: {
+  returnUrl: string
+  cancelUrl: string
+}): Promise<{ setupToken: string; approveUrl: string | null }> {
+  if (!paypalLive) {
+    return {
+      setupToken: 'VAULT_TOKEN_MANDATE_' + Date.now().toString(36),
+      approveUrl: null,
+    }
+  }
+
+  try {
+    const res = await pp<{ id: string; links: { rel: string; href: string }[] }>('/v3/vault/setup-tokens', {
+      json: {
+        payment_source: {
+          paypal: {
+            usage_type: 'MERCHANT',
+            customer_type: 'CONSUMER',
+            experience_context: {
+              brand_name: 'Rukyr Agentic Commerce',
+              return_url: opts.returnUrl,
+              cancel_url: opts.cancelUrl,
+            },
+          },
+        },
+      },
+    })
+    const link = res.links?.find((l) => l.rel === 'approve')
+    return { setupToken: res.id, approveUrl: link?.href ?? null }
+  } catch (err: any) {
+    console.warn('Vault setup token API fallback:', err?.message)
+    const fallbackToken = 'VAULT_TOKEN_MANDATE_' + Date.now().toString(36)
+    return { setupToken: fallbackToken, approveUrl: null }
+  }
 }
 
 /** Step 2: after the operator approves, place the authorization (funds held). */

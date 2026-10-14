@@ -8,6 +8,7 @@ import {
   type Proof,
   type Task,
   type Bid,
+  type OperatorMandate,
 } from './types'
 
 /**
@@ -33,6 +34,7 @@ interface Mem {
   proofs: Proof[]
   escrows: Escrow[]
   bids: Bid[]
+  mandate: OperatorMandate
 }
 const g = globalThis as unknown as { __rukyrMem?: Mem }
 
@@ -84,6 +86,15 @@ function seed(): Mem {
     proofs: [],
     escrows: seeded.map((s) => s[1]),
     bids: [],
+    mandate: {
+      vault_id: 'vault_live_operator_88a',
+      vault_status: 'active',
+      weekly_cap_cents: 5000,
+      spent_this_week_cents: 1450,
+      per_task_cap_cents: 500,
+      operator_email: 'operator@rukyr.ai',
+      last_authorized_at: iso(now - 3600_000),
+    },
   }
 }
 function mem(): Mem {
@@ -434,4 +445,24 @@ export async function getStats() {
     paid: tasks.filter((t) => t.status === 'paid').length,
     total: tasks.length,
   }
+}
+
+// ---------- operator budget mandate & vault ----------
+export async function getOperatorMandate(): Promise<OperatorMandate> {
+  return mem().mandate
+}
+
+export async function updateOperatorMandate(patch: Partial<OperatorMandate>): Promise<OperatorMandate> {
+  Object.assign(mem().mandate, patch)
+  return mem().mandate
+}
+
+export async function recordMandateSpend(cents: number): Promise<void> {
+  mem().mandate.spent_this_week_cents += cents
+}
+
+export async function revokeOperatorMandate(): Promise<OperatorMandate> {
+  mem().mandate.vault_status = 'revoked'
+  mem().mandate.vault_id = null
+  return mem().mandate
 }
