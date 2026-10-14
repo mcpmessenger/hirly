@@ -6,6 +6,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { RukyrClient } from '../lib/sdk.js'
+import { queryUcpCatalog, createUcpCheckoutHandoff } from '../lib/ucp.js'
 import type { TaskType } from '../lib/types.js'
 
 const BASE_URL = process.env.RUKYR_BASE_URL || 'https://rukyr.vercel.app'
@@ -123,6 +124,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['task_id', 'action'],
+        },
+      },
+      {
+        name: 'ucp_discover_products',
+        description:
+          'Discover products from merchants supporting Google/Shopify Universal Commerce Protocol (UCP). Returns product metadata, merchant endpoint, and whether physical ground-truth verification is advised before checkout.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Product search term (e.g. vintage band tee).',
+            },
+          },
+        },
+      },
+      {
+        name: 'ucp_create_checkout_handoff',
+        description:
+          'Generate a UCP checkout handoff URL once the agent verifies physical proof. Conforms to the Shopify agent checkout specification.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            product_id: {
+              type: 'string',
+              description: 'The UCP / merchant product ID.',
+            },
+          },
+          required: ['product_id'],
         },
       },
     ],
@@ -266,6 +296,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             },
           ],
         }
+      }
+    }
+
+    if (name === 'ucp_discover_products') {
+      const items = await queryUcpCatalog()
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(items, null, 2),
+          },
+        ],
+      }
+    }
+
+    if (name === 'ucp_create_checkout_handoff') {
+      const handoff = createUcpCheckoutHandoff(String(args?.product_id))
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: true,
+                handoff,
+                message: 'UCP checkout session generated. Direct the buyer/agent to checkoutUrl.',
+              },
+              null,
+              2
+            ),
+          },
+        ],
       }
     }
 
