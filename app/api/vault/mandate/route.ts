@@ -34,21 +34,26 @@ export async function POST(req: Request) {
     if (action === 'authorize') {
       const origin = new URL(req.url).origin
       const session = await createVaultSetupSession({
-        returnUrl: `${origin}/agent?vault=authorized`,
+        returnUrl: `${origin}/api/vault/return`,
         cancelUrl: `${origin}/agent?vault=cancelled`,
       })
 
+      // If PayPal requires interactive operator approval, status stays 'pending_approval'
+      // until the return callback (/api/vault/return) confirms consent.
+      const isPending = Boolean(session.approveUrl)
       const updated = await updateOperatorMandate({
         vault_id: session.setupToken,
-        vault_status: 'active',
-        last_authorized_at: new Date().toISOString(),
+        vault_status: isPending ? 'pending_approval' : 'active',
+        last_authorized_at: isPending ? null : new Date().toISOString(),
       })
 
       return NextResponse.json({
         success: true,
         mandate: updated,
         approveUrl: session.approveUrl,
-        message: 'Operator mandate authorized via PayPal Vault. Headless escrow holds active.',
+        message: isPending
+          ? 'Mandate setup token generated. Awaiting operator approval at PayPal.'
+          : 'Operator mandate authorized via PayPal Vault. Headless escrow holds active.',
       })
     }
 

@@ -95,7 +95,7 @@ export const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
 export interface OperatorMandate {
   vault_id: string | null
-  vault_status: 'active' | 'unauthorized' | 'revoked'
+  vault_status: 'active' | 'pending_approval' | 'unauthorized' | 'revoked'
   weekly_cap_cents: number
   spent_this_week_cents: number
   per_task_cap_cents: number

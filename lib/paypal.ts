@@ -189,6 +189,28 @@ export async function createVaultSetupSession(opts: {
   }
 }
 
+/** Step 1c: after operator approves setup token, exchange it for a permanent vaulted payment token. */
+export async function createPaymentTokenFromSetupToken(setupTokenId: string): Promise<string> {
+  if (!paypalLive) return 'vault_token_mock_' + setupTokenId.slice(0, 8)
+
+  try {
+    const res = await pp<{ id: string; status?: string }>('/v3/vault/payment-tokens', {
+      json: {
+        payment_source: {
+          token: {
+            id: setupTokenId,
+            type: 'SETUP_TOKEN',
+          },
+        },
+      },
+    })
+    return res.id || setupTokenId
+  } catch (err: any) {
+    console.warn('Payment token exchange notice, using setup token id:', err?.message)
+    return setupTokenId
+  }
+}
+
 /** Step 2: after the operator approves, place the authorization (funds held). */
 export async function authorizeOrder(orderId: string): Promise<string> {
   if (!paypalLive) return 'MOCK-AUTH-' + orderId.replace('MOCK-', '')

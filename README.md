@@ -157,6 +157,10 @@ Rukyr is not limited to static fixtures. Agents can query live e-commerce mercha
 - Row Level Security denies direct client queries; all database calls run server-side with verified service tokens.
 - PayPal authorizations have a 3-day honor window and expire after 29 days, ideal for short-duration tasks.
 
+## Demo Video & Documentation
+
+- [Hackathon Demo Video Script & Production Breakdown](docs/VIDEO_SCRIPT.md): Complete scene-by-scene script (2:45 runtime) targeting the **Best Agentic Commerce** track.
+
 ## Stack
 
 Next.js 16 (App Router), React 19, Tailwind 4, Supabase, PayPal REST, Vercel AI SDK, Resend.

@@ -252,7 +252,11 @@ export function AgentConsole({
               <div className="flex items-center gap-2">
                 <span
                   className={`size-2.5 rounded-full ${
-                    mandate.vault_status === 'active' ? 'bg-[#8bd3a8] animate-pulse' : 'bg-[#f4a261]'
+                    mandate.vault_status === 'active'
+                      ? 'bg-[#8bd3a8] animate-pulse'
+                      : mandate.vault_status === 'pending_approval'
+                      ? 'bg-[#f4a261] animate-pulse'
+                      : 'bg-[#77736c]'
                   }`}
                 />
                 <span className="font-mono text-[11px] uppercase tracking-wider text-[#8f8b84]">
@@ -262,10 +266,16 @@ export function AgentConsole({
                   className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase font-semibold ${
                     mandate.vault_status === 'active'
                       ? 'bg-[#1d2b22] text-[#8bd3a8]'
-                      : 'bg-[#33281c] text-[#f4a261]'
+                      : mandate.vault_status === 'pending_approval'
+                      ? 'bg-[#33281c] text-[#f4a261]'
+                      : 'bg-[#242320] text-[#8f8b84]'
                   }`}
                 >
-                  {mandate.vault_status === 'active' ? 'Vault Active (Unscheduled MIT)' : 'Manual Consent Required'}
+                  {mandate.vault_status === 'active'
+                    ? 'Vault Active (Unscheduled MIT)'
+                    : mandate.vault_status === 'pending_approval'
+                    ? 'Awaiting Operator Approval'
+                    : 'Manual Consent Required'}
                 </span>
               </div>
               <h3 className="mt-1 text-lg font-medium">Autonomous Spend Guardrails</h3>
@@ -279,6 +289,15 @@ export function AgentConsole({
                   className="rounded-full border border-[#f08f8f]/40 px-3.5 py-1 text-xs text-[#f08f8f] hover:bg-[#f08f8f]/10 disabled:opacity-50 transition-colors"
                 >
                   {busy === 'vault' ? 'Updating…' : 'Revoke Vault Token'}
+                </button>
+              ) : mandate.vault_status === 'pending_approval' ? (
+                <button
+                  type="button"
+                  disabled={busy === 'vault'}
+                  onClick={() => toggleVault('authorize')}
+                  className="rounded-full bg-[#f4a261] px-4 py-1 text-xs font-semibold text-[#171412] hover:bg-[#f4a261]/90 disabled:opacity-50 transition-colors"
+                >
+                  {busy === 'vault' ? 'Redirecting…' : 'Resume PayPal Consent'}
                 </button>
               ) : (
                 <button
@@ -321,8 +340,14 @@ export function AgentConsole({
 
             <div>
               <p className="text-[11px] text-[#77736c]">Autonomy Mode</p>
-              <p className="mt-0.5 text-xs text-[#8bd3a8] font-mono">
-                {mandate.vault_status === 'active' ? '● Headless Escrow Hold (0 Clicks)' : '○ Redirect Required'}
+              <p className="mt-0.5 text-xs font-mono">
+                {mandate.vault_status === 'active' ? (
+                  <span className="text-[#8bd3a8]">● Headless Escrow Hold (0 Clicks)</span>
+                ) : mandate.vault_status === 'pending_approval' ? (
+                  <span className="text-[#f4a261]">◌ Pending Operator Consent</span>
+                ) : (
+                  <span className="text-[#77736c]">○ Redirect Required</span>
+                )}
               </p>
               <p className="mt-2 text-[11px] text-[#77736c]">
                 Token: <span className="font-mono text-[#aaa69e]">{mandate.vault_id ? `${mandate.vault_id.slice(0, 16)}…` : 'None'}</span>
