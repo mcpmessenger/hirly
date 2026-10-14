@@ -12,7 +12,7 @@ const PRESET_EXAMPLES = [
   },
   {
     label: 'Live Shopify Store: Allbirds',
-    domain: 'shop.allbirds.com',
+    domain: 'allbirds.com',
     type: 'store',
   },
   {
