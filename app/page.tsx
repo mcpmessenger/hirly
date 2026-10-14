@@ -92,8 +92,8 @@ export default async function Page() {
 
       <footer id="about" className="border-t border-[#292826] px-6 py-8 lg:px-8">
         <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4 text-sm text-[#77736c] sm:flex-row">
-          <span className="flex items-center gap-1.5 font-medium text-[#f8f5ef]">
-            Rukyr <DonutMark className="text-base" />
+          <span className="flex items-center gap-2 font-medium text-[#f8f5ef]">
+            Rukyr <DonutMark width={26} height={14} />
           </span>
           <span>The human layer for the agent economy.</span>
           <span className="flex items-center gap-1"><Check aria-hidden="true" /> Built for the in-between.</span>

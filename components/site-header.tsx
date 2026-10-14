@@ -26,9 +26,9 @@ export function SiteHeader() {
         </div>
       )}
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5 lg:px-8">
-        <Link href="/" className="flex items-center gap-1.5" aria-label="Rukyr home">
+        <Link href="/" className="flex items-center gap-2 group" aria-label="Rukyr home">
           <span className="text-xl font-semibold tracking-[-0.04em]">Rukyr</span>
-          <DonutMark className="text-2xl transition-transform hover:scale-110" />
+          <DonutMark width={34} height={19} className="transition-transform group-hover:scale-105" />
         </Link>
         <div className="flex items-center gap-5 text-sm text-[#aaa69e]">
           {links.map((l) => (
