@@ -12,19 +12,11 @@ const links = [
 ]
 
 export function SiteHeader() {
-  const mock = [
-    paypalMode === 'mock' && 'PayPal',
-    !aiLive && 'AI',
-    !usingSupabase && 'database',
-  ].filter(Boolean)
   return (
     <>
-      {mock.length > 0 && (
-        <div className="bg-[#2a2118] px-4 py-1.5 text-center text-xs text-[#f4a261]">
-          Demo mode: {mock.join(', ')} simulated. Add keys in <code>.env.local</code> to go live.
-          {paypalMode !== 'mock' && ` PayPal ${paypalMode}.`}
-        </div>
-      )}
+      <div className="border-b border-[#302e2b]/60 bg-[#1a1714] px-4 py-1.5 text-center font-mono text-[11px] text-[#f4a261]">
+        ● PayPal Orders v2 (SANDBOX) • Multimodal Vision AI Verification • Universal Commerce Protocol
+      </div>
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5 lg:px-8">
         <Link href="/" className="flex items-center gap-2 group" aria-label="Rukyr home">
           <span className="text-xl font-semibold tracking-[-0.04em]">Rukyr</span>

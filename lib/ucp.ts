@@ -128,8 +128,8 @@ export async function queryUcpCatalog(options?: {
       },
       images: [
         {
-          url: '/placeholder.svg',
-          altText: 'Vintage concert tee listing photo',
+          url: '/vintage-band-tee.svg',
+          altText: 'Vintage concert tour tee listing photo',
         },
       ],
       requiresPhysicalVerification: true,

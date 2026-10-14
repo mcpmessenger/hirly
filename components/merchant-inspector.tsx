@@ -80,8 +80,8 @@ export function MerchantInspector() {
     <div className="rounded-2xl border border-[#302e2b] bg-[#161615] p-6 shadow-xl mb-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="rounded-full bg-[#8bd3a8]/20 px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase text-[#8bd3a8]">
-            Live Production System
+          <span className="rounded-full bg-[#f4a261]/20 px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase text-[#f4a261]">
+            Universal Web Ingestion
           </span>
           <h2 className="mt-2 text-xl font-semibold">Live Merchant & Product Inspector</h2>
           <p className="mt-1 text-xs text-[#8f8b84]">
@@ -267,7 +267,7 @@ export function MerchantInspector() {
       {storeResults.length > 0 && (
         <div className="mt-6 space-y-4">
           <h3 className="text-xs uppercase font-mono tracking-wider text-[#77736c]">
-            Live Catalog ({storeResults.length} items extracted)
+            Storefront Catalog ({storeResults.length} items extracted)
           </h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {storeResults.slice(0, 6).map(({ product, analysis }) => (

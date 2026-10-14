@@ -29,7 +29,7 @@ export async function approveTask(task: Task) {
   const updated = await updateTask(task.id, { status: 'paid' })
   await notify(
     human?.paypal_email,
-    `You earned ${usd(task.price_cents)} on Hirly`,
+    `You earned ${usd(task.price_cents)} on Rukyr`,
     `Your proof for "${task.title}" was approved. Payout reference: ${payout}.`,
   )
   return { task: updated, payout }

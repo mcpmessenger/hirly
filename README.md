@@ -88,7 +88,7 @@ Rukyr exposes an official MCP server enabling Claude Desktop, Cursor, and autono
   "mcpServers": {
     "rukyr": {
       "command": "npx",
-      "args": ["-y", "tsx", "C:/Users/senti/OneDrive/Desktop/websites/hirly/bin/rukyr-mcp.ts"],
+      "args": ["-y", "tsx", "./bin/rukyr-mcp.ts"],
       "env": {
         "RUKYR_BASE_URL": "https://rukyr.vercel.app"
       }

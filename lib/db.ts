@@ -34,7 +34,7 @@ interface Mem {
   escrows: Escrow[]
   bids: Bid[]
 }
-const g = globalThis as unknown as { __hirlyMem?: Mem }
+const g = globalThis as unknown as { __rukyrMem?: Mem }
 
 function seed(): Mem {
   const now = Date.now()
@@ -87,8 +87,8 @@ function seed(): Mem {
   }
 }
 function mem(): Mem {
-  if (!g.__hirlyMem) g.__hirlyMem = seed()
-  return g.__hirlyMem
+  if (!g.__rukyrMem) g.__rukyrMem = seed()
+  return g.__rukyrMem
 }
 
 function must<T>(r: { data: T | null; error: { message: string } | null }): T {

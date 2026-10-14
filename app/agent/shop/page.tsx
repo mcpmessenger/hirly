@@ -34,7 +34,7 @@ export default async function ShopPage() {
             <article key={p.id} className="mt-6 rounded-2xl border border-[#302e2b] bg-[#161615] p-5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={p.images[0]?.url || '/placeholder.svg'}
+                src={p.images[0]?.url || '/vintage-band-tee.svg'}
                 alt={p.title}
                 className="h-48 w-full rounded-xl bg-[#242320] object-contain"
               />

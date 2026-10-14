@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Vintage shirt wash gradient -->
+    <linearGradient id="teeWash" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#282624" />
+      <stop offset="50%" stop-color="#1f1d1b" />
+      <stop offset="100%" stop-color="#181716" />
+    </linearGradient>
+
+    <!-- Faded print gradient -->
+    <linearGradient id="printFade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f4a261" />
+      <stop offset="50%" stop-color="#e76f51" />
+      <stop offset="100%" stop-color="#d94b38" />
+    </linearGradient>
+
+    <!-- Subtle texture filter -->
+    <filter id="distress" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise" />
+      <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.15 0" />
+      <feComposite in2="SourceGraphic" in="gl" operator="in" />
+    </filter>
+  </defs>
+
+  <!-- Background container -->
+  <rect width="600" height="400" fill="#141413" rx="16" />
+
+  <!-- T-shirt silhouette -->
+  <g transform="translate(100, 30)">
+    <!-- Sleeves & Body -->
+    <path d="M140 20 C170 35 230 35 260 20 L330 75 L290 125 L255 105 L255 330 C255 335 145 335 145 330 L145 105 L110 125 L70 75 Z"
+          fill="url(#teeWash)" stroke="#383430" stroke-width="2.5" stroke-linejoin="round" />
+
+    <!-- Crew neck collar -->
+    <path d="M140 20 C170 45 230 45 260 20 C240 55 160 55 140 20 Z"
+          fill="#141312" stroke="#45403a" stroke-width="2" />
+    
+    <!-- Vintage Tour Print (Chest Graphic) -->
+    <g transform="translate(200, 160)" text-anchor="middle">
+      <!-- Outer circle ring -->
+      <circle cx="0" cy="0" r="48" stroke="#f4a261" stroke-width="2" stroke-dasharray="4 2" opacity="0.6" />
+      <circle cx="0" cy="0" r="40" stroke="#e76f51" stroke-width="1.5" opacity="0.8" />
+      
+      <!-- Vintage Eagle / Sun Icon -->
+      <path d="M-22 -8 L0 -24 L22 -8 L14 16 L0 24 L-14 16 Z" fill="url(#printFade)" opacity="0.85" />
+      <path d="M-30 0 L-10 12 L0 -4 L10 12 L30 0 L18 -16 L-18 -16 Z" fill="#f4a261" opacity="0.4" />
+
+      <!-- Typography -->
+      <text y="-32" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="11" fill="#f4a261" letter-spacing="3" opacity="0.95">WORLD TOUR</text>
+      <text y="4" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="20" fill="#f8f5ef" letter-spacing="1">1994</text>
+      <text y="36" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="9" fill="#f4a261" letter-spacing="4" opacity="0.85">NORTH AMERICA</text>
+    </g>
+
+    <!-- Vintage tag detail -->
+    <rect x="194" y="24" width="12" height="10" fill="#f8f5ef" opacity="0.7" rx="1" />
+  </g>
+
+  <!-- Physical Verification Pin / Watermark -->
+  <g transform="translate(470, 45)">
+    <rect width="105" height="26" rx="13" fill="#26211a" stroke="#f4a261" stroke-width="1" />
+    <circle cx="16" cy="13" r="4" fill="#f4a261" />
+    <text x="26" y="17" font-family="monospace" font-size="10" fill="#f4a261" font-weight="600">UCP ASSET</text>
+  </g>
+</svg>
