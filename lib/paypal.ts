@@ -10,15 +10,15 @@
  * rejection/timeout. Authorizations have a ~3 day honor period and last 29 days.
  */
 
-const CLIENT_ID = process.env.PAYPAL_CLIENT_ID
-const CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET
-const MODE = process.env.PAYPAL_MODE === 'live' ? 'live' : 'sandbox'
+const CLIENT_ID = process.env.PAYPAL_CLIENT_ID?.trim()
+const CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET?.trim()
+const MODE = (process.env.PAYPAL_MODE || 'sandbox').trim().toLowerCase() === 'live' ? 'live' : 'sandbox'
 const BASE = MODE === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
 
 export const paypalLive = Boolean(CLIENT_ID && CLIENT_SECRET)
 export const paypalMode = paypalLive ? MODE : 'mock'
 
-export const FEE_PCT = Number(process.env.PLATFORM_FEE_PCT ?? 15)
+export const FEE_PCT = Number((process.env.PLATFORM_FEE_PCT ?? '15').trim())
 export const feeFor = (priceCents: number) => Math.round((priceCents * FEE_PCT) / 100)
 
 async function token(): Promise<string> {
