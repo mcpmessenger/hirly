@@ -129,13 +129,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'ucp_discover_products',
         description:
-          'Discover products from merchants supporting Google/Shopify Universal Commerce Protocol (UCP). Returns product metadata, merchant endpoint, and whether physical ground-truth verification is advised before checkout.',
+          'Discover or inspect products from live merchants or Universal Commerce Protocol (UCP). Supports querying live Shopify stores or extracting Schema.org metadata from any e-commerce URL with physical verification risk analysis.',
         inputSchema: {
           type: 'object',
           properties: {
             query: {
               type: 'string',
               description: 'Product search term (e.g. vintage band tee).',
+            },
+            url: {
+              type: 'string',
+              description: 'Optional live product URL (from any retailer/store) to parse real-time price, stock, and photos.',
+            },
+            store_domain: {
+              type: 'string',
+              description: 'Optional live Shopify store domain (e.g. shop.allbirds.com) to query live catalog.',
             },
           },
         },
@@ -150,6 +158,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             product_id: {
               type: 'string',
               description: 'The UCP / merchant product ID.',
+            },
+            merchant_domain: {
+              type: 'string',
+              description: 'Optional merchant domain for live cart permalink generation.',
             },
           },
           required: ['product_id'],
@@ -385,7 +397,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'ucp_discover_products') {
-      const items = await queryUcpCatalog()
+      const items = await queryUcpCatalog({
+        url: args?.url ? String(args.url) : undefined,
+        domain: args?.store_domain ? String(args.store_domain) : undefined,
+        query: args?.query ? String(args.query) : undefined,
+      })
       return {
         content: [
           {
@@ -397,7 +413,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'ucp_create_checkout_handoff') {
-      const handoff = createUcpCheckoutHandoff(String(args?.product_id))
+      const handoff = createUcpCheckoutHandoff(
+        String(args?.product_id),
+        args?.merchant_domain ? String(args.merchant_domain) : undefined,
+      )
       return {
         content: [
           {

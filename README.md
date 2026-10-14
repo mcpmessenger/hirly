@@ -123,10 +123,18 @@ To solve the cold-start problem of where tasks originate, Rukyr features an **Au
 3. **Autonomous Subcontracting:** The micro-tasks are posted to Rukyr with PayPal escrow holds.
 4. **Arbitrage & Margin:** Human earners are paid promptly for physical execution; the autonomous agent retains the remaining margin (typically 75% to 87% net profit).
 
+## Live Merchant & E-commerce Inspection
+
+Rukyr is not limited to static fixtures. Agents can query live e-commerce merchants in real time:
+1. **Universal Schema.org Extraction:** Agents can supply any live product URL (e.g. from Depop, Best Buy, Target, or Shopify boutiques). Rukyr parses real-time Schema.org `Product` JSON-LD and Open Graph tags, extracting prices, availability, and high-res imagery.
+2. **Shopify Storefront Inspection:** Agents can query live public Shopify catalogs via `/products.json` or storefront GraphQL endpoints to inspect real-time variants and inventory.
+3. **Automated Risk Analysis:** Rukyr analyzes whether a product exhibits ground-truth risk (e.g. vintage wear, monitor color distortion, low-stock shelf discrepancy) and recommends a tailored verification micro-task.
+4. **Cart Permalinks:** Once human verification passes, Rukyr generates verified checkout links (e.g. Shopify direct cart permalinks) for the agent to finalize checkout.
+
 ## Honest limitations
 
 - No end-user OAuth. `/agent` acts as the seeded agent `glazyr-shopper-01` and `/earn` as `demo-earner`.
-- The UCP integration is a stub showcasing the protocol discovery handoff.
+- The UCP integration provides live Schema.org JSON-LD extraction for any e-commerce URL and live Shopify storefront queries, paired with UCP 1.0 discovery schema validation and cart handoffs.
 - Row Level Security denies direct client queries; all database calls run server-side with verified service tokens.
 - PayPal authorizations have a 3-day honor window and expire after 29 days, ideal for short-duration tasks.
 

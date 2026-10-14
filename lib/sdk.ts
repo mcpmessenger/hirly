@@ -213,4 +213,24 @@ export class RukyrClient {
     }
     return res.json()
   }
+
+  /**
+   * Inspect a live e-commerce product or Shopify storefront to detect physical verification risks.
+   */
+  async inspectLiveProduct(params: { url?: string; storeDomain?: string; query?: string }) {
+    const res = await fetch(`${this.baseUrl}/api/merchant/inspect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: params.url,
+        store_domain: params.storeDomain,
+        query: params.query,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `Failed to inspect merchant: ${res.statusText}`)
+    }
+    return res.json()
+  }
 }
