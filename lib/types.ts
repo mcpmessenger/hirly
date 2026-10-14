@@ -66,6 +66,20 @@ export interface Escrow {
   captured_at: string | null
 }
 
+export type BidStatus = 'pending' | 'accepted' | 'rejected'
+
+export interface Bid {
+  id: string
+  task_id: string
+  bidder_id: string
+  bid_cents: number
+  eta_minutes: number
+  pitch: string
+  status: BidStatus
+  created_at: string
+  bidder?: Profile
+}
+
 export const TASK_TYPE_LABEL: Record<TaskType, string> = {
   verification: 'PHOTO PROOF',
   bot_gate: 'BOT GATE',

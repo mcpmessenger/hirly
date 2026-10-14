@@ -1,6 +1,7 @@
 import { SiteHeader } from '@/components/site-header'
 import { AgentConsole, type ConsoleItem, type Prefill } from '@/components/agent-console'
-import { getEscrow, getLatestProof, getStats, listTasks } from '@/lib/db'
+import { getEscrow, getLatestProof, getStats, listBidsForTask, listTasks } from '@/lib/db'
+import { discoverExternalGigs } from '@/lib/subcontract'
 import type { TaskType } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -14,12 +15,13 @@ const FLASH: Record<string, { kind: 'ok' | 'err'; text: string }> = {
 
 export default async function AgentPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
-  const [tasks, stats] = await Promise.all([listTasks(), getStats()])
+  const [tasks, stats, externalGigs] = await Promise.all([listTasks(), getStats(), discoverExternalGigs()])
   const items: ConsoleItem[] = await Promise.all(
     tasks.map(async (task) => ({
       task,
       escrow: await getEscrow(task.id),
       proof: task.status === 'submitted' || task.status === 'paid' ? await getLatestProof(task.id) : null,
+      bids: await listBidsForTask(task.id),
     })),
   )
   const prefill: Prefill | undefined = sp.title
@@ -36,7 +38,7 @@ export default async function AgentPage({ searchParams }: { searchParams: Promis
   return (
     <main className="min-h-screen bg-[#111111] text-[#f8f5ef]">
       <SiteHeader />
-      <AgentConsole items={items} stats={stats} prefill={prefill} flash={flash} />
+      <AgentConsole items={items} stats={stats} prefill={prefill} flash={flash} externalGigs={externalGigs} />
     </main>
   )
 }

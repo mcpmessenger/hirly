@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { ClaimProof } from '@/components/claim-proof'
 import { SiteHeader } from '@/components/site-header'
 import { StatusBadge, timeLeft } from '@/components/task-card'
-import { getDemoProfile, getTask, listTasks } from '@/lib/db'
+import { getDemoProfile, getTask, listBidsForTask, listTasks } from '@/lib/db'
 import { TASK_TYPE_LABEL, usd } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   await listTasks() // lazy sweep so stale claims reopen
-  const task = await getTask(id)
+  const [task, bids] = await Promise.all([getTask(id), listBidsForTask(id)])
   if (!task) notFound()
   const human = await getDemoProfile('human')
   const mine = task.claimed_by === human.id
@@ -39,7 +39,14 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         </div>
         <p className="mt-6 whitespace-pre-wrap text-sm leading-6 text-[#aaa69e]">{task.description || 'No extra instructions.'}</p>
         <div className="mt-8">
-          <ClaimProof taskId={task.id} stage={stage} claimedAt={task.claimed_at} proofRequirements={task.proof_requirements} />
+          <ClaimProof
+            taskId={task.id}
+            taskPriceCents={task.price_cents}
+            stage={stage}
+            claimedAt={task.claimed_at}
+            proofRequirements={task.proof_requirements}
+            initialBids={bids}
+          />
         </div>
       </div>
     </main>

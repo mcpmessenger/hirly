@@ -4,12 +4,14 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { StatusBadge, timeLeft } from './task-card'
-import { TASK_TYPE_LABEL, usd, type Escrow, type Proof, type Task, type TaskType } from '@/lib/types'
+import { TASK_TYPE_LABEL, usd, type Escrow, type Proof, type Task, type TaskType, type Bid } from '@/lib/types'
+import type { ExternalGig } from '@/lib/subcontract'
 
 export interface ConsoleItem {
   task: Task
   escrow: Escrow | null
   proof: Proof | null
+  bids?: Bid[]
 }
 export interface ConsoleStats {
   escrowed_cents: number
@@ -31,11 +33,22 @@ const input =
   'w-full rounded-lg border border-[#302e2b] bg-[#161615] px-3 py-2 text-sm outline-none focus:border-[#f4a261]'
 
 export function AgentConsole({
-  items, stats, prefill, flash,
-}: { items: ConsoleItem[]; stats: ConsoleStats; prefill?: Prefill; flash?: { kind: 'ok' | 'err'; text: string } | null }) {
+  items,
+  stats,
+  prefill,
+  flash,
+  externalGigs = [],
+}: {
+  items: ConsoleItem[]
+  stats: ConsoleStats
+  prefill?: Prefill
+  flash?: { kind: 'ok' | 'err'; text: string } | null
+  externalGigs?: ExternalGig[]
+}) {
   const router = useRouter()
   const [tab, setTab] = useState<(typeof TABS)[number]>('all')
   const [showForm, setShowForm] = useState(Boolean(prefill?.title))
+  const [showSubcontract, setShowSubcontract] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(flash ?? null)
@@ -54,7 +67,56 @@ export function AgentConsole({
     })
     const data = await res.json()
     setBusy(null)
-    setMsg(res.ok ? { kind: 'ok', text: { approve: 'Approved. Payment captured and earner paid.', reject: 'Rejected. Task reopened.', cancel: 'Cancelled. Hold released.' }[action] } : { kind: 'err', text: data.error })
+    setMsg(
+      res.ok
+        ? {
+            kind: 'ok',
+            text: {
+              approve: 'Approved. Payment captured and earner paid.',
+              reject: 'Rejected. Task reopened.',
+              cancel: 'Cancelled. Hold released.',
+            }[action],
+          }
+        : { kind: 'err', text: data.error },
+    )
+    router.refresh()
+  }
+
+  async function acceptBid(taskId: string, bidId: string) {
+    setBusy('bid' + bidId)
+    const res = await fetch(`/api/tasks/${taskId}/bids/${bidId}/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const data = await res.json()
+    setBusy(null)
+    if (!res.ok) {
+      setMsg({ kind: 'err', text: data.error || 'Failed to accept bid' })
+      return
+    }
+    setMsg({
+      kind: 'ok',
+      text: `Offer accepted! Task assigned to earner at ${usd(data.bid?.bid_cents || 0)}.`,
+    })
+    router.refresh()
+  }
+
+  async function ingestGig(gigId: string) {
+    setBusy('gig' + gigId)
+    const res = await fetch(`/api/subcontract/jobs/${gigId}/ingest`, {
+      method: 'POST',
+    })
+    const data = await res.json()
+    setBusy(null)
+    if (!res.ok) {
+      setMsg({ kind: 'err', text: data.error || 'Failed to subcontract gig' })
+      return
+    }
+    setShowSubcontract(false)
+    setMsg({
+      kind: 'ok',
+      text: `Subcontracted! Created ${data.result?.created_tasks?.length || 0} micro-tasks. Agent keeps $${data.result?.agent_margin?.toFixed(2)} net profit.`,
+    })
     router.refresh()
   }
 
@@ -93,11 +155,24 @@ export function AgentConsole({
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-[-0.04em]">Agent console</h1>
-          <p className="mt-1 text-sm text-[#8f8b84]">Acting as <span className="font-mono text-[#c4beb4]">glazyr-shopper-01</span></p>
+          <p className="mt-1 text-sm text-[#8f8b84]">
+            Acting as <span className="font-mono text-[#c4beb4]">glazyr-shopper-01</span>
+          </p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="rounded-full bg-[#f4a261] px-5 py-2.5 text-sm font-semibold text-[#171412]">
-          {showForm ? 'Close' : 'Post task'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSubcontract((s) => !s)}
+            className="rounded-full border border-[#f4a261] px-5 py-2.5 text-sm font-semibold text-[#f4a261] hover:bg-[#f4a261]/10 transition-colors"
+          >
+            {showSubcontract ? 'Close Subcontractor' : 'Find Work (Upwork Bridge)'}
+          </button>
+          <button
+            onClick={() => setShowForm((s) => !s)}
+            className="rounded-full bg-[#f4a261] px-5 py-2.5 text-sm font-semibold text-[#171412] hover:bg-[#f4a261]/90 transition-colors"
+          >
+            {showForm ? 'Close' : 'Post task'}
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
@@ -114,40 +189,173 @@ export function AgentConsole({
       </div>
 
       {msg && (
-        <p role="status" className={`mb-6 rounded-lg px-4 py-3 text-sm ${msg.kind === 'ok' ? 'bg-[#1d2b22] text-[#8bd3a8]' : 'bg-[#331d1d] text-[#f08f8f]'}`}>
+        <p
+          role="status"
+          className={`mb-6 rounded-lg px-4 py-3 text-sm ${
+            msg.kind === 'ok' ? 'bg-[#1d2b22] text-[#8bd3a8]' : 'bg-[#331d1d] text-[#f08f8f]'
+          }`}
+        >
           {msg.text}
         </p>
       )}
 
+      {/* Subcontracting Hub (Upwork Bridge) */}
+      {showSubcontract && (
+        <div className="mb-8 rounded-2xl border border-[#f4a261]/40 bg-[#161615] p-6 shadow-xl">
+          <div className="flex items-start justify-between">
+            <div>
+              <span className="rounded-full bg-[#f4a261]/20 px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase text-[#f4a261]">
+                Upwork & Client Gig Subcontractor
+              </span>
+              <h2 className="mt-2 text-xl font-semibold">Autonomous Gig Arbitrage</h2>
+              <p className="mt-1 text-sm text-[#8f8b84]">
+                Accept external client contracts, subcontract physical edge cases to Rukyr earners via PayPal escrow, and keep the analytical profit margin.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSubcontract(false)}
+              className="text-xs text-[#77736c] hover:text-white"
+            >
+              ✕ Close
+            </button>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {externalGigs.map((g) => {
+              const totalPayout = g.subtasks.reduce((sum, s) => sum + s.suggested_price_dollars, 0)
+              const margin = g.client_budget_usd - totalPayout
+              return (
+                <div
+                  key={g.id}
+                  className="flex flex-col justify-between rounded-xl border border-[#302e2b] bg-[#1b1b1a] p-4 transition-colors hover:border-[#5d5147]"
+                >
+                  <div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-mono uppercase text-[#77736c]">
+                        {g.source.toUpperCase()} • {g.posted_time}
+                      </span>
+                      <span className="font-semibold text-[#8bd3a8]">${g.client_budget_usd.toFixed(2)} Client Budget</span>
+                    </div>
+                    <h3 className="mt-2 font-medium leading-snug">{g.title}</h3>
+                    <p className="mt-2 text-xs text-[#8f8b84] line-clamp-2">{g.description}</p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {g.subtasks.map((st, i) => (
+                        <span
+                          key={i}
+                          className="rounded bg-[#242320] px-2 py-0.5 text-[10px] text-[#aaa69e]"
+                        >
+                          {st.title.slice(0, 32)}… (${st.suggested_price_dollars})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#262422] pt-3 flex items-center justify-between">
+                    <div className="text-xs">
+                      <span className="text-[#77736c]">Earner Cost: </span>
+                      <span className="font-mono text-[#f8f5ef]">${totalPayout.toFixed(2)}</span>
+                      <span className="ml-2 text-[#8bd3a8] font-mono">
+                        (+${margin.toFixed(2)} Margin)
+                      </span>
+                    </div>
+                    <button
+                      disabled={busy === 'gig' + g.id}
+                      onClick={() => ingestGig(g.id)}
+                      className="rounded-full bg-[#f4a261] px-4 py-1.5 text-xs font-semibold text-[#171412] disabled:opacity-50 hover:bg-[#f4a261]/90"
+                    >
+                      {busy === 'gig' + g.id ? 'Subcontracting…' : 'Subcontract via Rukyr'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {showForm && (
-        <form onSubmit={post} className="mb-8 grid gap-4 rounded-2xl border border-[#302e2b] bg-[#161615] p-5 md:grid-cols-2">
-          <label className="md:col-span-2 text-sm">Title
-            <input name="title" required minLength={3} maxLength={140} defaultValue={prefill?.title} className={input + ' mt-1'} />
+        <form
+          onSubmit={post}
+          className="mb-8 grid gap-4 rounded-2xl border border-[#302e2b] bg-[#161615] p-5 md:grid-cols-2"
+        >
+          <label className="md:col-span-2 text-sm">
+            Title
+            <input
+              name="title"
+              required
+              minLength={3}
+              maxLength={140}
+              defaultValue={prefill?.title}
+              className={input + ' mt-1'}
+            />
           </label>
-          <label className="md:col-span-2 text-sm">Instructions
-            <textarea name="description" rows={3} maxLength={1000} defaultValue={prefill?.description} className={input + ' mt-1'} />
+          <label className="md:col-span-2 text-sm">
+            Instructions
+            <textarea
+              name="description"
+              rows={3}
+              maxLength={1000}
+              defaultValue={prefill?.description}
+              className={input + ' mt-1'}
+            />
           </label>
-          <label className="text-sm">Type
-            <select name="task_type" defaultValue={prefill?.task_type ?? 'verification'} className={input + ' mt-1'}>
-              {Object.entries(TASK_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <label className="text-sm">
+            Type
+            <select
+              name="task_type"
+              defaultValue={prefill?.task_type ?? 'verification'}
+              className={input + ' mt-1'}
+            >
+              {Object.entries(TASK_TYPE_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
             </select>
           </label>
-          <label className="text-sm">Proof required
-            <select name="proof" defaultValue={prefill?.proof_requirements ?? 'photo'} className={input + ' mt-1'}>
-              <option value="photo">Photo</option><option value="text">Text</option><option value="code">Code</option>
+          <label className="text-sm">
+            Proof required
+            <select
+              name="proof"
+              defaultValue={prefill?.proof_requirements ?? 'photo'}
+              className={input + ' mt-1'}
+            >
+              <option value="photo">Photo</option>
+              <option value="text">Text</option>
+              <option value="code">Code</option>
             </select>
           </label>
-          <label className="text-sm">Price (USD, 0.50 to 10)
-            <input name="price" type="number" step="0.25" min="0.5" max="10" defaultValue={price} className={input + ' mt-1 font-mono'} />
+          <label className="text-sm">
+            Price (USD, 0.50 to 10)
+            <input
+              name="price"
+              type="number"
+              step="0.25"
+              min="0.5"
+              max="10"
+              defaultValue={price}
+              className={input + ' mt-1 font-mono'}
+            />
           </label>
-          <label className="text-sm">Deadline
+          <label className="text-sm">
+            Deadline
             <select name="deadline" defaultValue="240" className={input + ' mt-1'}>
-              <option value="30">30 minutes</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="1440">1 day</option><option value="10080">7 days</option>
+              <option value="30">30 minutes</option>
+              <option value="120">2 hours</option>
+              <option value="240">4 hours</option>
+              <option value="1440">1 day</option>
+              <option value="10080">7 days</option>
             </select>
           </label>
           <div className="md:col-span-2 flex items-center justify-between">
-            <p className="text-xs text-[#77736c]">A {FEE_PCT}% platform fee is added to the price and held in PayPal escrow until you approve the proof.</p>
-            <button disabled={busy === 'post'} className="rounded-full bg-[#f4a261] px-5 py-2.5 text-sm font-semibold text-[#171412] disabled:opacity-50">
+            <p className="text-xs text-[#77736c]">
+              A {FEE_PCT}% platform fee is added to the price and held in PayPal escrow until you
+              approve the proof.
+            </p>
+            <button
+              disabled={busy === 'post'}
+              className="rounded-full bg-[#f4a261] px-5 py-2.5 text-sm font-semibold text-[#171412] disabled:opacity-50"
+            >
               {busy === 'post' ? 'Posting…' : 'Post & fund escrow'}
             </button>
           </div>
@@ -156,8 +364,24 @@ export function AgentConsole({
 
       <div className="mb-4 flex flex-wrap gap-2">
         {TABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1.5 text-xs capitalize ${tab === t ? 'bg-[#f4a261] text-[#171412]' : 'bg-[#242320] text-[#aaa69e]'}`}>
-            {t === 'expired' ? 'cancelled/expired' : t} ({items.filter((i) => (t === 'all' ? true : t === 'expired' ? ['expired', 'cancelled'].includes(i.task.status) : i.task.status === t)).length})
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-full px-3 py-1.5 text-xs capitalize ${
+              tab === t ? 'bg-[#f4a261] text-[#171412]' : 'bg-[#242320] text-[#aaa69e]'
+            }`}
+          >
+            {t === 'expired' ? 'cancelled/expired' : t} (
+            {
+              items.filter((i) =>
+                t === 'all'
+                  ? true
+                  : t === 'expired'
+                  ? ['expired', 'cancelled'].includes(i.task.status)
+                  : i.task.status === t,
+              ).length
+            }
+            )
           </button>
         ))}
       </div>
@@ -165,27 +389,53 @@ export function AgentConsole({
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <div className="flex flex-col gap-3">
           {shown.length === 0 && <p className="text-sm text-[#77736c]">Nothing here yet.</p>}
-          {shown.map(({ task }) => (
-            <button key={task.id} onClick={() => setSelected(task.id)} className={`rounded-2xl border p-4 text-left transition-colors ${selected === task.id ? 'border-[#f4a261]' : 'border-[#302e2b] hover:border-[#5d5147]'} bg-[#1b1b1a]`}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold tracking-[.16em] text-[#8f8b84]">{TASK_TYPE_LABEL[task.task_type]}</p>
-                  <p className="mt-1 font-medium">{task.title}</p>
+          {shown.map(({ task, bids = [] }) => {
+            const pendingBids = bids.filter((b) => b.status === 'pending')
+            return (
+              <button
+                key={task.id}
+                onClick={() => setSelected(task.id)}
+                className={`rounded-2xl border p-4 text-left transition-colors ${
+                  selected === task.id
+                    ? 'border-[#f4a261]'
+                    : 'border-[#302e2b] hover:border-[#5d5147]'
+                } bg-[#1b1b1a]`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold tracking-[.16em] text-[#8f8b84]">
+                      {TASK_TYPE_LABEL[task.task_type]}
+                    </p>
+                    <p className="mt-1 font-medium">{task.title}</p>
+                  </div>
+                  <span className="font-mono text-lg text-[#f4a261]">{usd(task.price_cents)}</span>
                 </div>
-                <span className="font-mono text-lg text-[#f4a261]">{usd(task.price_cents)}</span>
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-[#77736c]">
-                <span>{timeLeft(task.deadline_at)}</span><StatusBadge status={task.status} />
-              </div>
-            </button>
-          ))}
+                <div className="mt-3 flex items-center justify-between text-xs text-[#77736c]">
+                  <span>{timeLeft(task.deadline_at)}</span>
+                  <div className="flex items-center gap-2">
+                    {pendingBids.length > 0 && task.status === 'open' && (
+                      <span className="rounded-full bg-[#f4a261]/20 px-2 py-0.5 text-[10px] font-medium text-[#f4a261]">
+                        {pendingBids.length} offer{pendingBids.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    <StatusBadge status={task.status} />
+                  </div>
+                </div>
+              </button>
+            )
+          })}
         </div>
 
         <aside className="rounded-2xl border border-[#302e2b] bg-[#161615] p-5 lg:sticky lg:top-6 lg:self-start">
           {!sel ? (
-            <p className="text-sm text-[#77736c]">Select a task to see its timeline and review proof.</p>
+            <p className="text-sm text-[#77736c]">Select a task to see its timeline, bids, and review proof.</p>
           ) : (
-            <TaskDetail item={sel} busy={busy} onAct={act} />
+            <TaskDetail
+              item={sel}
+              busy={busy}
+              onAct={act}
+              onAcceptBid={(bidId) => acceptBid(sel.task.id, bidId)}
+            />
           )}
         </aside>
       </div>
@@ -193,52 +443,145 @@ export function AgentConsole({
   )
 }
 
-function TaskDetail({ item, busy, onAct }: { item: ConsoleItem; busy: string | null; onAct: (id: string, a: 'approve' | 'reject' | 'cancel') => void }) {
-  const { task, escrow, proof } = item
+function TaskDetail({
+  item,
+  busy,
+  onAct,
+  onAcceptBid,
+}: {
+  item: ConsoleItem
+  busy: string | null
+  onAct: (id: string, a: 'approve' | 'reject' | 'cancel') => void
+  onAcceptBid: (bidId: string) => void
+}) {
+  const { task, escrow, proof, bids = [] } = item
   const order = ['pending_funding', 'open', 'claimed', 'submitted', 'paid']
   const reached = order.indexOf(task.status)
   const steps = [['Escrowed', 1], ['Claimed', 2], ['Proof submitted', 3], ['Paid', 4]] as const
   const v = proof?.ai_verdict
+
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
-        <h2 className="font-medium">{task.title}</h2><StatusBadge status={task.status} />
+        <h2 className="font-medium">{task.title}</h2>
+        <StatusBadge status={task.status} />
       </div>
-      {task.description && <p className="mt-2 text-sm leading-6 text-[#8f8b84]">{task.description}</p>}
+      {task.description && (
+        <p className="mt-2 text-sm leading-6 text-[#8f8b84]">{task.description}</p>
+      )}
       <ol className="mt-5 space-y-2 text-sm">
         {steps.map(([label, idx]) => (
-          <li key={label} className={reached >= idx ? 'text-[#8bd3a8]' : 'text-[#5a5751]'}>{reached >= idx ? '●' : '○'} {label}</li>
+          <li key={label} className={reached >= idx ? 'text-[#8bd3a8]' : 'text-[#5a5751]'}>
+            {reached >= idx ? '●' : '○'} {label}
+          </li>
         ))}
       </ol>
       {escrow && (
         <p className="mt-4 font-mono text-xs text-[#77736c]">
           Escrow {escrow.status}: {usd(escrow.amount_cents)} (fee {usd(escrow.platform_fee_cents)})
-          <br />Order {escrow.paypal_order_id}
+          <br />
+          Order {escrow.paypal_order_id}
         </p>
+      )}
+
+      {/* Bids & Reverse Auction Section */}
+      {bids.length > 0 && (
+        <div className="mt-5 rounded-xl border border-[#302e2b] bg-[#1b1b1a] p-4">
+          <p className="text-xs uppercase tracking-widest text-[#77736c]">
+            Earner Offers & Bids ({bids.length})
+          </p>
+          <div className="mt-3 divide-y divide-[#262422]">
+            {bids.map((b) => (
+              <div key={b.id} className="py-3 flex items-start justify-between gap-3 text-xs">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-[#f4a261]">
+                      {usd(b.bid_cents)}
+                    </span>
+                    <span className="text-[#77736c]">ETA: {b.eta_minutes}m</span>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[9px] font-mono uppercase ${
+                        b.status === 'accepted'
+                          ? 'bg-[#1d2b22] text-[#8bd3a8]'
+                          : b.status === 'rejected'
+                          ? 'bg-[#331d1d] text-[#f08f8f]'
+                          : 'bg-[#2c2a20] text-[#e6d37a]'
+                      }`}
+                    >
+                      {b.status}
+                    </span>
+                  </div>
+                  {b.pitch && <p className="mt-1 text-[#aaa69e]">{b.pitch}</p>}
+                </div>
+                {task.status === 'open' && b.status === 'pending' && (
+                  <button
+                    disabled={!!busy}
+                    onClick={() => onAcceptBid(b.id)}
+                    className="shrink-0 rounded-full bg-[#f4a261] px-3 py-1 text-xs font-semibold text-[#171412] disabled:opacity-50 hover:bg-[#f4a261]/90"
+                  >
+                    {busy === 'bid' + b.id ? 'Accepting…' : 'Accept Offer'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {proof && task.status === 'submitted' && (
         <div className="mt-5 rounded-xl border border-[#302e2b] bg-[#1b1b1a] p-4">
           <p className="text-xs uppercase tracking-widest text-[#77736c]">Submitted proof</p>
           {proof.proof_image_url && (
-            <Image src={proof.proof_image_url} alt="Proof submitted by earner" width={600} height={400} unoptimized className="mt-3 max-h-72 w-full rounded-lg object-contain" />
+            <Image
+              src={proof.proof_image_url}
+              alt="Proof submitted by earner"
+              width={600}
+              height={400}
+              unoptimized
+              className="mt-3 max-h-72 w-full rounded-lg object-contain"
+            />
           )}
           {proof.proof_text && <p className="mt-3 text-sm">{proof.proof_text}</p>}
-          <div className={`mt-4 rounded-lg px-3 py-2 text-sm ${v === 'pass' ? 'bg-[#1d2b22] text-[#8bd3a8]' : v === 'fail' ? 'bg-[#331d1d] text-[#f08f8f]' : 'bg-[#33281c] text-[#f4a261]'}`}>
-            AI verdict: <strong>{v}</strong> ({Math.round((proof.ai_confidence ?? 0) * 100)}% confidence)
+          <div
+            className={`mt-4 rounded-lg px-3 py-2 text-sm ${
+              v === 'pass'
+                ? 'bg-[#1d2b22] text-[#8bd3a8]'
+                : v === 'fail'
+                ? 'bg-[#331d1d] text-[#f08f8f]'
+                : 'bg-[#33281c] text-[#f4a261]'
+            }`}
+          >
+            AI verdict: <strong>{v}</strong> ({Math.round((proof.ai_confidence ?? 0) * 100)}%
+            confidence)
             <p className="mt-1 text-xs opacity-80">{proof.ai_reasoning}</p>
           </div>
           <div className="mt-4 flex gap-2">
-            <button disabled={!!busy} onClick={() => onAct(task.id, 'approve')} className="flex-1 rounded-full bg-[#f4a261] px-4 py-2 text-sm font-semibold text-[#171412] disabled:opacity-50">
-              {busy === task.id + 'approve' ? 'Releasing…' : `Approve & release ${usd(task.price_cents)}`}
+            <button
+              disabled={!!busy}
+              onClick={() => onAct(task.id, 'approve')}
+              className="flex-1 rounded-full bg-[#f4a261] px-4 py-2 text-sm font-semibold text-[#171412] disabled:opacity-50"
+            >
+              {busy === task.id + 'approve'
+                ? 'Releasing…'
+                : `Approve & release ${usd(task.price_cents)}`}
             </button>
-            <button disabled={!!busy} onClick={() => onAct(task.id, 'reject')} className="rounded-full border border-[#44413c] px-4 py-2 text-sm disabled:opacity-50">Reject</button>
+            <button
+              disabled={!!busy}
+              onClick={() => onAct(task.id, 'reject')}
+              className="rounded-full border border-[#44413c] px-4 py-2 text-sm disabled:opacity-50"
+            >
+              Reject
+            </button>
           </div>
         </div>
       )}
 
       {['open', 'claimed', 'submitted'].includes(task.status) && (
-        <button disabled={!!busy} onClick={() => onAct(task.id, 'cancel')} className="mt-4 text-xs text-[#77736c] underline disabled:opacity-50">
+        <button
+          disabled={!!busy}
+          onClick={() => onAct(task.id, 'cancel')}
+          className="mt-4 text-xs text-[#77736c] underline disabled:opacity-50"
+        >
           Cancel task & release hold
         </button>
       )}

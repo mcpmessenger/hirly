@@ -155,6 +155,91 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['product_id'],
         },
       },
+      {
+        name: 'rukyr_get_bids',
+        description: 'Get all active or pending counter-offers/bids submitted by human earners on a task.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task_id: {
+              type: 'string',
+              description: 'The unique ID of the Rukyr task.',
+            },
+          },
+          required: ['task_id'],
+        },
+      },
+      {
+        name: 'rukyr_submit_bid',
+        description: 'Submit an earner counter-offer / bid on an open task with proposed price, ETA, and pitch note.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task_id: {
+              type: 'string',
+              description: 'The unique ID of the Rukyr task to bid on.',
+            },
+            bid_dollars: {
+              type: 'number',
+              description: 'Proposed price in USD for completing the task.',
+            },
+            eta_minutes: {
+              type: 'number',
+              description: 'Estimated minutes to complete and upload proof (default 30).',
+            },
+            pitch: {
+              type: 'string',
+              description: 'Brief qualification note or pitch (e.g. proximity to location, high-res camera).',
+            },
+          },
+          required: ['task_id', 'bid_dollars'],
+        },
+      },
+      {
+        name: 'rukyr_accept_bid',
+        description: 'Accept an earner bid on an open task, locking the price and assigning the earner as claimant.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            task_id: {
+              type: 'string',
+              description: 'The unique ID of the Rukyr task.',
+            },
+            bid_id: {
+              type: 'string',
+              description: 'The unique ID of the bid to accept.',
+            },
+          },
+          required: ['task_id', 'bid_id'],
+        },
+      },
+      {
+        name: 'rukyr_discover_external_jobs',
+        description: 'Discover external client contracts (Upwork, Freelancer, B2B procurement) available for autonomous agents to subcontract into Rukyr micro-tasks.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Optional search keyword or category (e.g. retail, inventory, photo, inspection).',
+            },
+          },
+        },
+      },
+      {
+        name: 'rukyr_subcontract_job',
+        description: 'Subcontract an external client contract (e.g. from Upwork) into decomposed Rukyr micro-tasks with PayPal escrow and reverse auctions.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            gig_id: {
+              type: 'string',
+              description: 'The unique ID of the external gig/contract (e.g. upwork-retail-audit-101).',
+            },
+          },
+          required: ['gig_id'],
+        },
+      },
     ],
   }
 })
@@ -322,6 +407,96 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 success: true,
                 handoff,
                 message: 'UCP checkout session generated. Direct the buyer/agent to checkoutUrl.',
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      }
+    }
+
+    if (name === 'rukyr_get_bids') {
+      const bids = await client.getBids(String(args?.task_id))
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(bids, null, 2),
+          },
+        ],
+      }
+    }
+
+    if (name === 'rukyr_submit_bid') {
+      const bidCents = Math.round(Number(args?.bid_dollars) * 100)
+      const res = await client.submitBid(String(args?.task_id), {
+        bidCents,
+        etaMinutes: args?.eta_minutes ? Number(args.eta_minutes) : 30,
+        pitch: args?.pitch ? String(args.pitch) : undefined,
+      })
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: true,
+                bid: res.bid,
+                message: `Bid of $${(bidCents / 100).toFixed(2)} submitted successfully.`,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      }
+    }
+
+    if (name === 'rukyr_accept_bid') {
+      const res = await client.acceptBid(String(args?.task_id), String(args?.bid_id))
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: true,
+                task: res.task,
+                bid: res.bid,
+                message: `Bid accepted. Task claimed and locked at $${((res.bid?.bid_cents || 0) / 100).toFixed(2)}.`,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      }
+    }
+
+    if (name === 'rukyr_discover_external_jobs') {
+      const res = await client.discoverJobs(args?.query ? String(args.query) : undefined)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(res, null, 2),
+          },
+        ],
+      }
+    }
+
+    if (name === 'rukyr_subcontract_job') {
+      const res = await client.subcontractJob(String(args?.gig_id))
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: true,
+                result: res.result,
+                message: `Client gig subcontracted into ${res.result?.created_tasks?.length || 0} Rukyr tasks with PayPal escrow holds. Agent net margin: $${res.result?.agent_margin?.toFixed(2) || '0.00'}.`,
               },
               null,
               2

@@ -7,6 +7,7 @@ import {
   type Profile,
   type Proof,
   type Task,
+  type Bid,
 } from './types'
 
 /**
@@ -31,6 +32,7 @@ interface Mem {
   tasks: Task[]
   proofs: Proof[]
   escrows: Escrow[]
+  bids: Bid[]
 }
 const g = globalThis as unknown as { __hirlyMem?: Mem }
 
@@ -81,6 +83,7 @@ function seed(): Mem {
     tasks: seeded.map((s) => s[0]),
     proofs: [],
     escrows: seeded.map((s) => s[1]),
+    bids: [],
   }
 }
 function mem(): Mem {
@@ -251,6 +254,153 @@ export async function getEscrowByOrder(orderId: string): Promise<Escrow | null> 
 export async function listEscrows(): Promise<Escrow[]> {
   if (!usingSupabase) return [...mem().escrows]
   return must(await sb().from('escrows').select('*')) as Escrow[]
+}
+
+// ---------- bids ----------
+export async function addBid(
+  input: Omit<Bid, 'id' | 'status' | 'created_at'>,
+): Promise<Bid> {
+  const fallback = () => {
+    const b: Bid = {
+      ...input,
+      id: randomUUID(),
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    }
+    mem().bids.push(b)
+    return b
+  }
+
+  if (!usingSupabase) {
+    return fallback()
+  }
+
+  try {
+    const res = await sb().from('bids').insert(input).select().single()
+    if (res.error) {
+      console.warn('Supabase bids insert error, falling back to memory:', res.error.message)
+      return fallback()
+    }
+    return res.data as Bid
+  } catch (err: any) {
+    console.warn('Supabase bids exception, falling back to memory:', err?.message || err)
+    return fallback()
+  }
+}
+
+export async function listBidsForTask(taskId: string): Promise<Bid[]> {
+  const fallback = () => {
+    const bids = mem().bids.filter((b) => b.task_id === taskId)
+    return bids.map((b) => ({
+      ...b,
+      bidder: mem().profiles.find((p) => p.id === b.bidder_id),
+    }))
+  }
+
+  if (!usingSupabase) {
+    return fallback()
+  }
+
+  try {
+    const res = await sb()
+      .from('bids')
+      .select('*, bidder:profiles(*)')
+      .eq('task_id', taskId)
+      .order('created_at', { ascending: false })
+
+    if (res.error) {
+      console.warn('Supabase list bids error, falling back to memory:', res.error.message)
+      return fallback()
+    }
+    return (res.data || []) as (Bid & { bidder: Profile })[]
+  } catch (err: any) {
+    console.warn('Supabase list bids exception, falling back to memory:', err?.message || err)
+    return fallback()
+  }
+}
+
+export async function acceptBid(bidId: string): Promise<{ task: Task; bid: Bid } | null> {
+  let bid: Bid | null = null
+
+  if (!usingSupabase) {
+    const b = mem().bids.find((x) => x.id === bidId)
+    if (!b || b.status !== 'pending') return null
+    const task = mem().tasks.find((t) => t.id === b.task_id)
+    if (!task || task.status !== 'open') return null
+
+    b.status = 'accepted'
+    bid = b
+    // Reject other bids for this task
+    for (const other of mem().bids) {
+      if (other.task_id === b.task_id && other.id !== b.id) {
+        other.status = 'rejected'
+      }
+    }
+    // Update task to claimed by this bidder at their bid price
+    task.status = 'claimed'
+    task.claimed_by = b.bidder_id
+    task.claimed_at = new Date().toISOString()
+    task.price_cents = b.bid_cents
+    return { task, bid }
+  }
+
+  // Supabase implementation with fallback
+  try {
+    const rBid = await sb().from('bids').select('*').eq('id', bidId).maybeSingle()
+    if (rBid.error) throw rBid.error
+    const fetchedBid = rBid.data as Bid | null
+    if (!fetchedBid || fetchedBid.status !== 'pending') return null
+
+    const now = new Date().toISOString()
+    const rTask = await sb()
+      .from('tasks')
+      .update({
+        status: 'claimed',
+        claimed_by: fetchedBid.bidder_id,
+        claimed_at: now,
+        price_cents: fetchedBid.bid_cents,
+      })
+      .eq('id', fetchedBid.task_id)
+      .eq('status', 'open')
+      .select()
+
+    if (rTask.error) throw rTask.error
+    const updatedTasks = rTask.data as Task[]
+    if (!updatedTasks.length) return null
+
+    // Mark bid accepted & reject others
+    await sb().from('bids').update({ status: 'accepted' }).eq('id', bidId)
+    await sb()
+      .from('bids')
+      .update({ status: 'rejected' })
+      .eq('task_id', fetchedBid.task_id)
+      .neq('id', bidId)
+
+    return { task: updatedTasks[0], bid: fetchedBid }
+  } catch (err: any) {
+    console.warn('Supabase accept bid error, falling back to memory:', err?.message || err)
+    // Check if bid exists in mem
+    const b = mem().bids.find((x) => x.id === bidId)
+    if (!b || b.status !== 'pending') return null
+    b.status = 'accepted'
+    for (const other of mem().bids) {
+      if (other.task_id === b.task_id && other.id !== b.id) {
+        other.status = 'rejected'
+      }
+    }
+    // Update task in Supabase or mem
+    try {
+      const updated = await updateTask(b.task_id, {
+        status: 'claimed',
+        claimed_by: b.bidder_id,
+        claimed_at: new Date().toISOString(),
+        price_cents: b.bid_cents,
+      })
+      return { task: updated, bid: b }
+    } catch {
+      return null
+    }
+  }
 }
 
 // ---------- proof image storage ----------

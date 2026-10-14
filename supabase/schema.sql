@@ -1,4 +1,4 @@
-﻿-- Rukyr â€” Supabase schema. Run in the Supabase SQL editor.
+-- Rukyr â€” Supabase schema. Run in the Supabase SQL editor.
 -- The app talks to Supabase with the service-role key from server routes only,
 -- so RLS is enabled with NO policies (deny-all for anon/authenticated clients).
 
@@ -62,6 +62,19 @@ alter table profiles enable row level security;
 alter table tasks enable row level security;
 alter table proofs enable row level security;
 alter table escrows enable row level security;
+
+create table bids (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references tasks(id) on delete cascade,
+  bidder_id uuid not null references profiles(id),
+  bid_cents integer not null check (bid_cents > 0),
+  eta_minutes integer not null default 30,
+  pitch text not null default '',
+  status text not null default 'pending' check (status in ('pending','accepted','rejected')),
+  created_at timestamptz not null default now()
+);
+create index bids_task_idx on bids(task_id);
+alter table bids enable row level security;
 
 -- Proof images: create a public-read Storage bucket named "proofs" (dashboard â†’ Storage),
 -- or uncomment:

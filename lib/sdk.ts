@@ -143,4 +143,74 @@ export class RukyrClient {
 
     throw new Error(`Timed out waiting for task proof (${taskId})`)
   }
+
+  /**
+   * Fetch all bids submitted for a task.
+   */
+  async getBids(taskId: string): Promise<any[]> {
+    const res = await fetch(`${this.baseUrl}/api/tasks/${taskId}/bids`)
+    if (!res.ok) throw new Error(`Failed to list bids: ${res.statusText}`)
+    const data = await res.json()
+    return data.bids || []
+  }
+
+  /**
+   * Submit an earner bid on an open task.
+   */
+  async submitBid(taskId: string, params: { bidCents: number; etaMinutes?: number; pitch?: string }) {
+    const res = await fetch(`${this.baseUrl}/api/tasks/${taskId}/bids`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bid_cents: params.bidCents,
+        eta_minutes: params.etaMinutes ?? 30,
+        pitch: params.pitch ?? '',
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `Failed to submit bid: ${res.statusText}`)
+    }
+    return res.json()
+  }
+
+  /**
+   * Accept an earner's bid on a task.
+   */
+  async acceptBid(taskId: string, bidId: string) {
+    const res = await fetch(`${this.baseUrl}/api/tasks/${taskId}/bids/${bidId}/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `Failed to accept bid: ${res.statusText}`)
+    }
+    return res.json()
+  }
+
+  /**
+   * Discover external client / Upwork jobs available for agents to subcontract.
+   */
+  async discoverJobs(query?: string) {
+    const q = query ? `?q=${encodeURIComponent(query)}` : ''
+    const res = await fetch(`${this.baseUrl}/api/subcontract/jobs${q}`)
+    if (!res.ok) throw new Error(`Failed to discover jobs: ${res.statusText}`)
+    return res.json()
+  }
+
+  /**
+   * Decompose an external contract into Rukyr micro-tasks with escrow holds.
+   */
+  async subcontractJob(gigId: string) {
+    const res = await fetch(`${this.baseUrl}/api/subcontract/jobs/${gigId}/ingest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `Failed to subcontract job: ${res.statusText}`)
+    }
+    return res.json()
+  }
 }
