@@ -48,7 +48,7 @@ export default async function AgentPage({ searchParams }: { searchParams: Promis
     : null
 
   return (
-    <main className="min-h-screen bg-[#111111] text-[#f8f5ef]">
+    <main className="min-h-screen bg-[#faf9f5] dark:bg-[#121211] text-neutral-900 dark:text-neutral-100 transition-colors duration-200">
       <SiteHeader />
       <AgentConsole
         items={items}

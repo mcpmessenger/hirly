@@ -3,34 +3,102 @@ import { SiteHeader } from '@/components/site-header'
 import { StatusBadge } from '@/components/task-card'
 import { getDemoProfile, listTasks } from '@/lib/db'
 import { usd } from '@/lib/types'
+import { Star, ArrowRight } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 export default async function EarningsPage() {
   const human = await getDemoProfile('human')
-  const mine = (await listTasks()).filter((t) => t.claimed_by === human.id || (t.status === 'paid' && t.claimed_by === human.id))
+  const mine = (await listTasks()).filter(
+    (t) => t.claimed_by === human.id || (t.status === 'paid' && t.claimed_by === human.id),
+  )
   const paid = mine.filter((t) => t.status === 'paid').reduce((s, t) => s + t.price_cents, 0)
-  const pending = mine.filter((t) => ['claimed', 'submitted'].includes(t.status)).reduce((s, t) => s + t.price_cents, 0)
+  const pending = mine
+    .filter((t) => ['claimed', 'submitted'].includes(t.status))
+    .reduce((s, t) => s + t.price_cents, 0)
+
   return (
-    <main className="min-h-screen bg-[#111111] text-[#f8f5ef]">
+    <main className="min-h-screen bg-[#faf9f5] dark:bg-[#121211] text-neutral-900 dark:text-neutral-100 transition-colors duration-200">
       <SiteHeader />
-      <div className="mx-auto max-w-3xl px-6 pb-20">
-        <h1 className="text-3xl font-semibold tracking-[-0.04em]">Earnings</h1>
-        <p className="mt-1 text-sm text-[#8f8b84]">
-          <span className="font-mono text-[#c4beb4]">{human.display_name}</span> · reputation {human.reputation.toFixed(1)}
-        </p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[#302e2b] bg-[#161615] p-4"><p className="text-xs uppercase tracking-widest text-[#77736c]">Paid</p><p className="mt-1 font-mono text-2xl text-[#8bd3a8]">{usd(paid)}</p></div>
-          <div className="rounded-2xl border border-[#302e2b] bg-[#161615] p-4"><p className="text-xs uppercase tracking-widest text-[#77736c]">Pending</p><p className="mt-1 font-mono text-2xl text-[#f4a261]">{usd(pending)}</p></div>
+      <div className="mx-auto max-w-3xl px-5 pb-24 pt-4 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-950 dark:text-neutral-50">
+              My Earnings
+            </h1>
+            <p className="mt-0.5 text-xs sm:text-sm text-neutral-500">
+              Authenticated earner profile:{' '}
+              <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">
+                {human.display_name}
+              </span>
+            </p>
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#1a1918] px-3.5 py-1 text-xs font-semibold text-neutral-800 dark:text-neutral-200 shadow-2xs self-start sm:self-auto">
+            <Star className="size-3.5 fill-amber-400 text-amber-500" />
+            <span>Reputation {human.reputation.toFixed(1)} / 5.0</span>
+          </div>
         </div>
-        <div className="mt-8 flex flex-col gap-2">
-          {mine.length === 0 && <p className="text-sm text-[#77736c]">No tasks yet. <Link className="underline" href="/earn">Find one</Link>.</p>}
-          {mine.map((t) => (
-            <Link key={t.id} href={`/earn/tasks/${t.id}`} className="flex items-center justify-between rounded-xl border border-[#302e2b] bg-[#1b1b1a] px-4 py-3 text-sm">
-              <span>{t.title}</span>
-              <span className="flex items-center gap-3"><StatusBadge status={t.status} /><span className="font-mono text-[#f4a261]">{usd(t.price_cents)}</span></span>
-            </Link>
-          ))}
+
+        {/* Balance cards */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-[#1a1918] p-5 shadow-xs">
+            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+              Total Paid Out
+            </p>
+            <p className="mt-1 font-mono text-2xl font-bold text-emerald-600 dark:text-[#8bd3a8]">
+              {usd(paid)}
+            </p>
+            <p className="mt-2 text-xs text-neutral-400">Captured and disbursed to PayPal account.</p>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-[#1a1918] p-5 shadow-xs">
+            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+              Pending in Escrow
+            </p>
+            <p className="mt-1 font-mono text-2xl font-bold text-[#cf6a42] dark:text-[#f4a261]">
+              {usd(pending)}
+            </p>
+            <p className="mt-2 text-xs text-neutral-400">Locked in PayPal escrow pending verification.</p>
+          </div>
+        </div>
+
+        {/* Task history */}
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500 mb-3">
+            Task Activity ({mine.length})
+          </h2>
+
+          <div className="flex flex-col gap-2.5">
+            {mine.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-800 p-8 text-center text-sm text-neutral-500">
+                You haven&apos;t claimed any tasks yet.{' '}
+                <Link className="font-semibold underline text-[#cf6a42] dark:text-[#f4a261]" href="/earn">
+                  Find open tasks
+                </Link>
+                .
+              </div>
+            ) : (
+              mine.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/earn/tasks/${t.id}`}
+                  className="group flex items-center justify-between rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#1a1918] px-4 py-3 text-sm transition-all hover:border-neutral-300 dark:hover:border-neutral-700 shadow-2xs"
+                >
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100 group-hover:text-[#cf6a42] dark:group-hover:text-[#f4a261] transition-colors">
+                    {t.title}
+                  </span>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <StatusBadge status={t.status} />
+                    <span className="font-mono font-semibold text-[#cf6a42] dark:text-[#f4a261]">
+                      {usd(t.price_cents)}
+                    </span>
+                    <ArrowRight className="size-4 text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </main>

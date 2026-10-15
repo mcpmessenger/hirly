@@ -7,55 +7,71 @@ export function timeLeft(deadline: string | null): string {
   const ms = Date.parse(deadline) - Date.now()
   if (ms <= 0) return 'Expired'
   const m = Math.floor(ms / 60000)
-  if (m < 60) return `${m} min left`
+  if (m < 60) return `${m}m left`
   const h = Math.floor(m / 60)
-  return h < 48 ? `${h} hr${h > 1 ? 's' : ''} left` : `${Math.floor(h / 24)} days left`
+  return h < 48 ? `${h}h left` : `${Math.floor(h / 24)}d left`
 }
 
 const STATUS_STYLE: Record<string, string> = {
-  pending_funding: 'bg-[#2c2a20] text-[#e6d37a]',
-  open: 'bg-[#1d2b22] text-[#8bd3a8]',
-  claimed: 'bg-[#1f2736] text-[#8fb4f0]',
-  submitted: 'bg-[#33281c] text-[#f4a261]',
-  verified: 'bg-[#1d2b22] text-[#8bd3a8]',
-  paid: 'bg-[#1d2b22] text-[#8bd3a8]',
-  cancelled: 'bg-[#2a2a2a] text-[#888]',
-  expired: 'bg-[#2a2a2a] text-[#888]',
+  pending_funding: 'bg-amber-100/80 text-amber-900 dark:bg-[#2c2a20] dark:text-[#e6d37a]',
+  open: 'bg-emerald-100/80 text-emerald-800 dark:bg-[#1d2b22] dark:text-[#8bd3a8]',
+  claimed: 'bg-blue-100/80 text-blue-800 dark:bg-[#1f2736] dark:text-[#8fb4f0]',
+  submitted: 'bg-orange-100/80 text-orange-900 dark:bg-[#33281c] dark:text-[#f4a261]',
+  verified: 'bg-emerald-100/80 text-emerald-800 dark:bg-[#1d2b22] dark:text-[#8bd3a8]',
+  paid: 'bg-emerald-100/80 text-emerald-800 dark:bg-[#1d2b22] dark:text-[#8bd3a8]',
+  cancelled: 'bg-neutral-200/70 text-neutral-600 dark:bg-[#2a2a2a] dark:text-[#888]',
+  expired: 'bg-neutral-200/70 text-neutral-600 dark:bg-[#2a2a2a] dark:text-[#888]',
 }
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <span className={`rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider ${STATUS_STYLE[status] ?? ''}`}>
+    <span
+      className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider ${
+        STATUS_STYLE[status] ?? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
+      }`}
+    >
       {status.replace('_', ' ')}
     </span>
   )
 }
 
-export function TaskCard({ task, href, showStatus }: { task: Task; href: string; showStatus?: boolean }) {
+export function TaskCard({
+  task,
+  href,
+  showStatus,
+}: {
+  task: Task
+  href: string
+  showStatus?: boolean
+}) {
   return (
     <Link
       href={href}
-      className="group block rounded-2xl border border-[#302e2b] bg-[#1b1b1a] p-5 transition-colors hover:border-[#5d5147]"
+      className="group block rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white dark:bg-[#1a1918] p-5 shadow-xs transition-all hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-sm"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <span className="text-[10px] font-semibold tracking-[.16em] text-[#8f8b84]">
+          <span className="text-[10px] font-semibold tracking-[.14em] uppercase text-neutral-500 dark:text-neutral-400">
             {TASK_TYPE_LABEL[task.task_type]}
           </span>
-          <h3 className="mt-2 max-w-md font-medium leading-6">{task.title}</h3>
+          <h3 className="mt-1.5 font-medium leading-snug text-neutral-900 dark:text-neutral-100 group-hover:text-[#cf6a42] dark:group-hover:text-[#f4a261] transition-colors">
+            {task.title}
+          </h3>
         </div>
-        <span className="font-mono text-xl text-[#f4a261]">{usd(task.price_cents)}</span>
+        <span className="font-mono text-lg font-semibold text-[#cf6a42] dark:text-[#f4a261] shrink-0">
+          {usd(task.price_cents)}
+        </span>
       </div>
-      <div className="mt-5 flex items-center justify-between text-xs text-[#77736c]">
-        <span className="flex items-center gap-1.5">
-          <Clock3 aria-hidden="true" className="size-3.5" /> {timeLeft(task.deadline_at)}
+      <div className="mt-4 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
+        <span className="flex items-center gap-1.5 font-mono">
+          <Clock3 aria-hidden="true" className="size-3.5 opacity-70" /> {timeLeft(task.deadline_at)}
         </span>
-        <span className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {showStatus && <StatusBadge status={task.status} />}
-          <span className="flex items-center gap-1 text-[#b1aca4]">
-            View task <ChevronRight aria-hidden="true" className="size-4" />
+          <span className="flex items-center gap-0.5 font-medium text-neutral-700 dark:text-neutral-300 group-hover:translate-x-0.5 transition-transform">
+            View <ChevronRight aria-hidden="true" className="size-3.5" />
           </span>
-        </span>
+        </div>
       </div>
     </Link>
   )

@@ -1,5 +1,6 @@
-﻿import { Analytics } from '@vercel/analytics/next'
+import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -25,8 +26,11 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'dark',
-  themeColor: '#111111',
+  colorScheme: 'light dark',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#faf9f5' },
+    { media: '(prefers-color-scheme: dark)', color: '#131312' },
+  ],
 }
 
 export default function RootLayout({
@@ -35,9 +39,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased min-h-screen bg-[#faf9f5] text-[#1c1b18] dark:bg-[#131312] dark:text-[#f5f3ef] transition-colors duration-200">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+        </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

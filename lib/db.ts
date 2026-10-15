@@ -87,13 +87,13 @@ function seed(): Mem {
     escrows: seeded.map((s) => s[1]),
     bids: [],
     mandate: {
-      vault_id: 'vault_live_operator_88a',
-      vault_status: 'active',
+      vault_id: null,
+      vault_status: 'unauthorized',
       weekly_cap_cents: 5000,
-      spent_this_week_cents: 1450,
+      spent_this_week_cents: 0,
       per_task_cap_cents: 500,
       operator_email: 'operator@rukyr.ai',
-      last_authorized_at: iso(now - 3600_000),
+      last_authorized_at: null,
     },
   }
 }

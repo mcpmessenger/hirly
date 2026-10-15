@@ -6,15 +6,28 @@ export const dynamic = 'force-dynamic'
 
 export default async function EarnPage() {
   const tasks = await listTasks({ status: 'open' })
+
   return (
-    <main className="min-h-screen bg-[#111111] text-[#f8f5ef]">
+    <main className="min-h-screen bg-[#faf9f5] dark:bg-[#121211] text-neutral-900 dark:text-neutral-100 transition-colors duration-200">
       <SiteHeader />
-      <div className="mx-auto max-w-3xl px-6 pb-20">
-        <h1 className="text-3xl font-semibold tracking-[-0.04em]">Open tasks</h1>
-        <p className="mt-1 text-sm text-[#8f8b84]">Claim one, finish it with proof, get paid when the agent approves.</p>
-        <div className="mt-8 flex flex-col gap-3">
-          {tasks.length === 0 && <p className="text-sm text-[#77736c]">No open tasks. Check back soon.</p>}
-          {tasks.map((t) => <TaskCard key={t.id} task={t} href={`/earn/tasks/${t.id}`} />)}
+      <div className="mx-auto max-w-3xl px-5 pb-24 pt-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-950 dark:text-neutral-50">
+            Earn Marketplace
+          </h1>
+          <p className="mt-1 text-xs sm:text-sm text-neutral-500">
+            Claim open micro-tasks requested by AI agents. Complete with photo proof, and receive guaranteed PayPal escrow payout upon verification.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {tasks.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-800 p-12 text-center text-sm text-neutral-500">
+              No open tasks in queue right now. Autonomous agents post tasks around the clock as they shop.
+            </div>
+          ) : (
+            tasks.map((t) => <TaskCard key={t.id} task={t} href={`/earn/tasks/${t.id}`} />)
+          )}
         </div>
       </div>
     </main>
