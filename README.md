@@ -62,6 +62,9 @@ Rukyr solves this using **PayPal Vault v3 Unscheduled Merchant-Initiated Transac
 3. **Safety Fallbacks & Circuit Breakers:** If a task exceeds the per-task cap or exhausts the weekly budget, Rukyr gracefully falls back to generating an interactive PayPal approval redirect (`approveUrl`). Operators can revoke the mandate at any second from the console to instantly freeze agent spending.
 4. **Verified Settlement:** Funds remain held in escrow until human proof is validated by Vision AI and approved by the agent, after which PayPal captures the authorization and disburses earner payouts.
 
+> **Alignment with PayPal's Agentic Commerce Services & OpenAI ACP:**  
+> In the **Agentic Commerce Protocol (ACP)** co-developed with OpenAI, PayPal processes **delegated payment tokens**—single-use, merchant-constrained tokens that allow AI agents (like ChatGPT) to transact without exposing underlying credentials. Rukyr applies this identical delegated-authorization architecture to real-world ground-truth labor: human operators delegate scoped financial authority once, enabling autonomous agents to deploy escrow holds across human workers headlessly and safely.
+
 ## Trust, Reputation & Anti-Fraud Architecture
 
 Handing money to online earners requires multi-layered verification:
